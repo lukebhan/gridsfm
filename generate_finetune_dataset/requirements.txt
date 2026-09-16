@@ -1,4 +1,0 @@
-# Python side of the harness. Everything else it uses is standard library.
-# The solve/export side is Julia (>=1.12) with the project in src/ instantiated:
-#   julia --project=src -e 'using Pkg; Pkg.instantiate()'
-PyYAML>=6.0

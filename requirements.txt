@@ -6,6 +6,10 @@
 #
 # The solve/export half of generate_finetune_dataset is Julia (>= 1.12), not pip:
 #   julia --project=generate_finetune_dataset/src -e 'using Pkg; Pkg.instantiate()'
+#
+# Generating datasets needs only PyYAML from this list -- its Python side is
+# orchestration and the rest is standard library. Everything else here is for
+# finetune_model and the bundled `gridsfm` package.
 
 torch>=2.8.0
 torch_geometric>=2.8.0

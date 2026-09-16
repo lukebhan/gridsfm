@@ -1,12 +1,12 @@
 <div align="center">
-  <a href="https://www.asemic.ai/">
-    <img align="left" src="figures/asemic.png" width="300" height="60" alt="Asemic">
+  <a href="https://www.microsoft.com/en-us/research/">
+    <img align="left" src="media/microsoft.png" width="258" height="55" alt="Microsoft Research">
+  </a>
+  <a href="https://ucsd.edu/">
+    <img src="media/ucsd.png" width="281" height="55" alt="UC San Diego">
   </a>
   <a href="https://www.washington.edu/">
-    <img src="figures/uw.png" width="240" height="60" alt="University of Washington">
-  </a>
-  <a href="https://www.microsoft.com/en-us/research/">
-    <img align="right" src="figures/microsoft.png" width="260" height="60" alt="Microsoft Research">
+    <img align="right" src="media/uw.png" width="255" height="55" alt="University of Washington">
   </a>
 </div>
 
@@ -15,11 +15,11 @@
 # Fine-Tuning Grid Foundation Models for AC-OPF Warm Starts
 
 <div align="center">
- <a href="#"><img alt="Perturbation and dataset pipeline" src="figures/pipeline.png" width="100%"/></a>
+ <a href="#"><img alt="Perturbation and dataset pipeline" src="media/pipeline.png" width="100%"/></a>
 </div>
 
 <div align="center">
- <a href="#"><img alt="Data-scaling curves across four grids" src="figures/scaling.png" width="100%"/></a>
+ <a href="#"><img alt="Data-scaling curves across four grids" src="media/scaling.png" width="100%"/></a>
 </div>
 
 ## About this repository
@@ -179,9 +179,8 @@ python scripts/prep_cache.py --config config/tx2k_finetune.yaml
 bash scripts/train_grid.sh tx2k --go
 ```
 
-The fine-tuning objective, the per-grid recipes and the cache design are documented in
-[`finetune_model/README.md`](finetune_model/README.md); the perturbation modes, output
-schema and generation statistics in
+The released checkpoints and how to drive the harness are documented in
+[`finetune_model/README.md`](finetune_model/README.md); the perturbation modes in
 [`generate_finetune_dataset/README.md`](generate_finetune_dataset/README.md).
 
 ## Questions or issues
