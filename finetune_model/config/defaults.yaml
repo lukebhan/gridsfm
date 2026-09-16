@@ -1,0 +1,326 @@
+# defaults.yaml -- the complete set of fine-tuning settings, with the values that
+# reproduce the validated tx2k / 10k runs. Every per-dataset config in this folder
+# repeats the whole block explicitly rather than inheriting silently, so you can read
+# one file and know exactly what a run did. `extends: defaults.yaml` still fills in
+# anything a dataset config omits.
+#
+# Every key here is READ by the code. If you add one, wire it up -- a config key that
+# nothing consumes is worse than no key, because it looks like a control and is not.
+#
+# The resolved config (after CLI flags and derivation) is written to
+# results/<grid_id>/resolved_config.yaml on every run.
+
+base_checkpoint: checkpoints/base/gridsfm_open_v2.pt
+
+# Run label: names this run's results/, logs/ and checkpoints/ subdirectory, so a
+# sweep does not overwrite itself. null -> derived from data.train_subset
+# ("full", "n0010", "n0100", ...).
+run_label: null
+
+data:
+  # The three splits are read AS GIVEN. The harness NEVER re-splits, re-shuffles or
+  # merges them -- generate_finetune_dataset fixed the split (stratified by
+  # perturbation mode) and recorded it in splits.json. Merging them here is how a
+  # held-out set silently stops being held out.
+  #
+  # Location is ONE key: `root`. If the datasets move, you change this line, not four
+  # config files. `dir` defaults to <root>/<grid_id>.
+  # CLI: --data_root / --data_dir override both.
+  root: ../generate_finetune_dataset/data
+  dir: null                        # explicit override of <root>/<grid_id>
+  train: train_data.jsonl          # a bare filename resolves inside `dir`;
+  val:   val_data.jsonl            # a path with a separator resolves against
+  test:  test_data.jsonl           # finetune_model/ instead
+  # INPUT REPRESENTATION. The exporter emits every generator/load/shunt row and marks
+  # out-of-service ones with a trailing availability column. With this on, those rows
+  # are DELETED from the graph before the model sees it, so the model is trained on the
+  # active subgraph -- the problem the OPF actually solved.
+  #
+  # The loss is unaffected either way: it is already availability-masked (store.py
+  # builds `av`, every control_loss applies it), so the same ~170 generators are scored
+  # on case500_goc whichever setting is used. What changes is the INPUT.
+  #
+  # On, because the base checkpoint was pretrained on active-only graphs and cannot
+  # read the availability column: feeding it all rows makes it dispatch phantom power
+  # from units that are out, which on case500_goc is 24% of rows carrying 80% of its
+  # zero-shot Pg error. Starting the fine-tune from that costs budget that should go
+  # into dispatch accuracy.
+  #
+  # Turn it OFF to have the fine-tune LEARN the availability column instead, which is
+  # the more capable end state (the model can then represent an outaged unit rather
+  # than a smaller grid) but spends fine-tune budget getting there.
+  #
+  # This is part of a prepared case's identity: it is baked into the cache key and
+  # recorded in the manifest, so switching it requires a cache rebuild and cannot
+  # silently reuse the other representation.
+  drop_offline: true
+
+model:
+  clip_mode: sigmoid               # output squashing the surgery model expects
+  freeze: none                     # none | trunk -- `trunk` trains the prediction
+                                   # heads only (far fewer params, much weaker fit;
+                                   # the validated runs train the WHOLE backbone)
+
+  # NO-PRETRAINING ABLATION. from_scratch builds a randomly initialised backbone instead
+  # of loading base_checkpoint, so the run measures the architecture + objective without
+  # any transferred representation. hidden_dim/num_blocks apply ONLY on that path: the
+  # released checkpoint's own architecture comes from its metadata.
+  from_scratch: false
+  hidden_dim: 64                   # released default is 128
+  num_blocks: 4                    # released default is 8 (15.15M params total)
+
+train:
+  epochs: 30
+  batch: 4                         # micro-batch. >1 REQUIRES loss.segmented_topk, which
+                                   # takes top-k WITHIN each case; without it top-k spans
+                                   # the batch and stops tracking the worst generator.
+  accum: 1                         # optimizer steps every `accum` micro-batches.
+                                   # EFFECTIVE BATCH = batch * accum = 4, the value the
+                                   # validated tx2k/10k runs used (as 1 x 4). Measured
+                                   # equivalent: gradient cosine 0.9999977 vs 1 x 4, so
+                                   # lr and step count carry over unchanged.
+  lr: 1.5e-4
+
+  optimizer: adam                  # adam | adamw | sgd
+  betas: [0.9, 0.999]              # adam/adamw momentum coefficients
+  eps: 1.0e-8                      # adam/adamw denominator floor
+  weight_decay: 0.0                # adamw applies decoupled decay; adam applies L2
+  momentum: 0.9                    # sgd only
+  nesterov: true                   # sgd only
+
+  scheduler: cosine                # cosine | step | none
+  lr_min_frac: 0.05                # cosine floor = lr * this. The LR tail is what buys
+  lr_horizon: 0                    # epochs the cosine spans. 0 = the epoch cap (the
+                                   # old behaviour). Set it when `epochs` is a generous
+                                   # cap and early stopping ends the run much sooner --
+                                   # otherwise the cosine is still on its flat opening
+                                   # stretch when training stops and the LR never decays.
+                                   # the last-mile control accuracy.
+  warmup_epochs: 0                 # linear ramp from lr*warmup_start_frac over N epochs
+  warmup_start_frac: 0.1
+  step_size: 10                    # scheduler: step -- epochs per decay
+  step_gamma: 0.5                  # scheduler: step -- multiplier per decay
+
+  clip_grad: 1.0                   # max gradient norm; 0 disables clipping.
+  grad_probe_every: 0              # every N epochs, measure each loss term's share of
+                                   # the GRADIENT and of the realised step direction, and
+                                   # record it for the dashboard's 4th column. 0 = off.
+                                   # Loss-VALUE share and gradient share have repeatedly
+                                   # disagreed on this project -- w_merit once carried
+                                   # 22% of the value and 1.8% of the gradient -- so the
+                                   # only way to know what is steering is to measure it.
+                                   # Costs one extra closure solve plus five backward
+                                   # passes on ONE batch per probed epoch.
+                                   # Expect clip_frac ~1.0: pre-clip norms run in the
+                                   # hundreds-to-thousands on this loss (10k run peaked
+                                   # at 8069). That is the regime, not a bug.
+  clip_norm_type: 2.0              # p-norm used for clipping (2.0 = Euclidean)
+
+  select_on: val                   # val | final | train_loss -- which epoch ships.
+                                   # TEST is never a selection input: choosing on it
+                                   # would leak the held-out number.
+  early_stop_patience: 0           # stop after N epochs with no val improvement.
+                                   # 0 = off (run all epochs). Only meaningful with
+                                   # select_on: val.
+  early_stop_min_delta: 0.0        # val-score improvement that counts as progress
+
+  seed: 0                          # python / numpy / torch / cuda
+  deterministic: false             # also sets torch.use_deterministic_algorithms;
+                                   # costs speed and is not needed for run-to-run
+                                   # comparability of the reported metrics
+
+loss:
+  mode: control                    # control | elastic
+                                   #   control = MAX-ALIGNED regression vs GT controls (below)
+                                   #   elastic = self-supervised elastic AC-OPF on the CLOSED
+                                   #             state (cost + feasibility through the PF solve)
+                                   #             solve at all. This is the ELASTIC ABLATION arm:
+                                   #             it is exactly the GT-anchor term the elastic
+                                   #             objective already carries (the same function,
+                                   #             loss.rmse_control_loss), with the cost /
+                                   #             feasibility / merit terms removed, so the pair
+                                   #             differs in the physics and nothing else.
+                                   #             See README "The RMSE-only ablation".
+  # --- elastic mode (loss.mode: elastic) ---
+  #   L = sum c_i(Pg_i) + rho_g*sum log(1+|F|) + rho_h*sum log(1+relu(h~))
+  #   F  = balance residual (equality slack, bounded by the closure tolerance),
+  #   h~ = gen-P / gen-Q / V / thermal inequality residuals of the closed state.
+  rho_g: 10.0                      # equality-residual (feasibility-gap) penalty
+  rho_h: 10.0                      # inequality penalty
+  # CONVERGENCE-DRIVEN MERIT WEIGHT (closed loop). 0 = off; w_merit then stays constant.
+  #
+  # merit = 0.5*mean(F^2) self-anneals -- its gradient scales with F, so it has authority
+  # only while the closure is bad. Measured on case6470_rte at a FIXED w_merit=2e3,
+  # merit's share of the step direction ran 37% -> 2.4% -> 0.04% over three epochs while
+  # frac_converged climbed 71% -> 99%. The anchor then owns the direction (98%) and, since
+  # it sits at cos = -0.89 to the equality residual on that grid, walks the closure back
+  # out; merit is by then far too small to arrest it. No constant can fix this: merit's
+  # gradient per unit weight measured 173 in the failing regime against 0.741 at a trained
+  # checkpoint, a 233x swing. (And a large constant is worse, not better: at w_merit=5e5
+  # merit held ~99% of the direction, the closure never converged, so merit never
+  # annealed, and frac_converged went 55% -> 0% in five epochs.)
+  #
+  # So: whenever the epoch's frac_converged is BELOW w_merit_conv_target, re-solve w_merit
+  # from the MEASURED per-term gradients so merit holds w_merit_boost_share of the
+  # gradient NORM; once convergence is healthy, fall back to the base w_merit and let it
+  # anneal. Self-calibrating, because the weight is derived from what was measured rather
+  # than from a number tuned in one regime.
+  #
+  # Requires train.grad_probe_every >= 1 -- the controller reads the probe's measurements.
+  w_merit_conv_target: 0.0         # e.g. 0.99: boost whenever <99% of closures converge
+  w_merit_boost_share: 0.40        # merit's target share of the gradient norm when boosted
+  w_merit_max: 5.0e4               # hard cap. 5e5 measured a closure collapse; stay under.
+  merit_log: false                 # merit = rho_r * log(1 + ||r||^2/(2 n_r)) instead of
+                                   # the raw ||r||^2/(2 n_r), i.e. log1p-compressed the
+                                   # same way elastic_loss penalises the equality and
+                                   # inequality residuals (log1p(absF).sum(),
+                                   # log1p(h_all).sum()).
+                                   #
+                                   # The raw form spans an absurd range -- measured over
+                                   # one run, 2.4e-16 to 5.6e+03, a factor of 2.4e19 --
+                                   # so a few badly stalled cases own the term outright,
+                                   # and those are precisely the cases where the
+                                   # envelope-theorem gradient is least valid (it assumes
+                                   # a stalled, stationary y, and at ||F|| ~ 1e3 the
+                                   # returned iterate is nowhere near a solution).
+                                   # d/dm log(1+m) = 1/(1+m) caps that at 1.8e-4 for the
+                                   # worst observed case, while near convergence
+                                   # log(1+m) ~ m so the self-annealing is unchanged.
+  # W_MERIT RAMP. Leave w_merit_end unset and w_merit is the constant above; set it and
+  # w_merit anneals w_merit_start -> w_merit_end over w_merit_epochs, on the same
+  # curriculum_weight machinery as w_control. The ramp OWNS w_merit, so it and the
+  # convergence controller (w_merit_conv_target) are mutually exclusive -- the ramp wins.
+  #
+  # Ramping UP is deliberate. merit only has authority while the closure is bad, and that
+  # is exactly when its gradient is least trustworthy: _merit_grads uses the envelope
+  # theorem, which assumes a stalled Newton with y stationary, and at ||F|| ~ 1e3 the
+  # returned iterate is nowhere near a solution. Starting small lets the anchor and the
+  # inequality terms find a sane operating point first; raising it slowly hands merit
+  # growing authority over the residual as the states it scores become ones where its
+  # gradient means something.
+  w_merit_start: 200.0
+  w_merit_end:                     # unset = constant w_merit, no ramp
+  w_merit_epochs: 100
+  w_merit_schedule: geometric      # geometric | linear
+
+  # ANCHOR ANNEALED BY GRADIENT SHARE (w_control_share_*). Unset w_control_share_end and
+  # w_control follows its plain weight schedule. Set it and the anchor's SHARE OF THE
+  # GRADIENT NORM is scheduled instead, w_control being re-solved each epoch from the
+  # measured per-term gradients to hit that share.
+  #
+  # The weight does not map onto the share stably: measured on case6470_rte the anchor
+  # held 53.7% of the gradient at w_control=85 but 5-15% at w_control=1, and the anchor's
+  # gradient per unit weight differs 5.218x between the squared and max-aligned forms.
+  # The gated config's sweep was reasoning in shares all along ("93% -> PF broke",
+  # "75% <- chosen", "25% -> controls lost"); this schedules that axis directly.
+  #
+  # Damped and rate-limited like the merit controller -- the plant gain is just as
+  # non-stationary (65x between consecutive epochs) and an undamped solve oscillated 11x
+  # per epoch. Requires train.grad_probe_every >= 1.
+  w_control_share_start: 0.75
+  w_control_share_end:             # unset = plain weight schedule
+  w_control_share_epochs: 100
+  w_control_share_schedule: geometric
+  w_control_damping: 0.35
+  w_control_max_step: 2.0
+  w_merit_damping: 0.35            # fraction of the way to the solved weight, in log
+                                   # space. 1.0 = deadbeat (unstable: merit's gradient
+                                   # per unit weight moved 65x between consecutive epochs
+                                   # on case6470_rte, and a deadbeat solve against that
+                                   # oscillated 25% -> 5.6% -> 61.6% achieved share).
+  w_merit_max_step: 2.0            # max ratio w_merit may change in one epoch
+
+  # --- control mode (loss.mode: control) ---
+  # MAX-ALIGNED control loss, per quantity:
+  #   L = mean_weight*mean(e) + topk_weight*mean(topk(e)) + max_weight*max(e)
+  #   e = |pred - gt| / tol
+  # then total = w_pg * L_pg + w_v * L_v.
+  tol_pg: 0.01                     # p.u. -- PHYSICAL, so grid-size independent
+  tol_v: 1.0e-3                    # p.u. -- ditto
+  mean_weight: 1.0                 # the bulk term
+  topk_weight: 1.0                 # the worst-k term: what makes the loss max-aligned
+  max_weight: 0.3                  # light true-max term
+  w_pg: 1.0                        # relative weight of the Pg loss
+  w_v: 1.0                         # relative weight of the V-setpoint loss
+
+  # top-k widths are a FRACTION of the controls actually scored, measured from the
+  # cache. The two validated runs agree on the fraction, not the count:
+  #   tx2k  KP=32/736 =4.35%   KV=24/946 =2.54%
+  #   10k   KP=84/1937=4.34%   KV=44/1728=2.55%
+  topk_pg_frac: 0.0435
+  topk_v_frac:  0.0254
+  topk_pg: null                    # int overrides the derived value
+  topk_v:  null
+  segmented_topk: true             # per-case top-k inside a batch; REQUIRED if batch>1.
+                                   # Measured against batch=1 x accum=4 on case500:
+                                   # loss differs 2.5e-5 relative, gradient cosine
+                                   # 0.9999977 -- float-summation noise, not semantics.
+  per_grid_topk: true              # size k from EACH CASE's own scored count when a
+                                   # fraction is given, rather than one derived integer.
+                                   # Only reachable through `control_form: maxaligned`.
+
+  # WHICH ANCHOR the elastic objective pulls toward the GT controls with.
+  #   squared    -- 0.5*mean((d/tol)^2). THE DEFAULT, and what every shipped weight in
+  #                 this repo is tuned for.
+  #   maxaligned -- the v2 control loss: mean + top-k mean + max on |d|/tol.
+  # maxaligned was trialled and REVERTED. It improved case500_goc substantially (-25.5%
+  # Pg at n=500) and helped case6470_rte and tx2k, but it broke activsg10k, whose
+  # closure is marginal: its per-element gradient is sign(e), constant right up to the
+  # target, where the squared form's is e and self-anneals. Constant-magnitude push
+  # makes controls hunt around their targets and the power flow never settles -- closure
+  # sat at 0.000-0.700 across a 3.8x range of w_control, i.e. no weight fixes it. The
+  # code path is kept for a future Huber variant (quadratic below a knee, linear above)
+  # which is the form that could interpolate the two; as it stands, use squared.
+  control_form: squared            # squared | maxaligned
+
+eval:
+  batch: 16                        # no-grad val batch (pooling is fine without top-k)
+  test_batch: 8                    # final TEST pass
+  val_score_pg_weight: 1.0         # selection score = pg_w*Pg% + v_w*V(p.u.)
+  val_score_v_weight: 1000.0       # 1000x puts 0.001 p.u. of V on par with 1% of Pg
+
+cache:
+  dir: null                        # default: finetune_model/cache/<grid_id>
+  workers: 12                      # prep workers (measured 29 ms/case on case500)
+  mem_budget_gb: 6.0               # LRU sized from this and the measured bytes/case
+
+logging:
+  step_log_every: 1                # write every Nth optimizer step to history_step.csv
+  plot_every_epochs: 1             # refresh training_curves.png every N epochs
+  save_every_epochs: 0             # also keep epoch_<N>.pt every N epochs; 0 = off
+                                   # (best_val.pt / best_train_loss.pt / last.pt always)
+
+closure:                           # differentiable AC power-flow closure (loss.mode: elastic)
+  workers: 0                       # process-pool workers for the per-scenario PF solves;
+                                   # 0/1 = serial in-process. >1 fans the independent Newton
+                                   # solves across CPU cores (case500: ~8x at 16 workers).
+  tol_start: 1.0e-1                # curriculum: LOOSE closure tolerance ||F||_inf at epoch 1
+  tol_end:   1.0e-8                # curriculum: TIGHT tolerance at the final epoch
+  tol_schedule: geometric          # geometric | linear -- how tol_start anneals to tol_end
+  max_newton: 40                   # Newton iteration cap per solve
+  backtrack: true                  # backtracking line search on ||F|| (robustness)
+  warm_start: true                 # carry each case's converged point across epochs, so
+                                   # a case pays the dc_init_V bootstrap once. FALSE
+                                   # cold-starts every batch from dc_init_V exactly as
+                                   # the eval's completion does. The cache makes
+                                   # frac_converged a WARM-STARTED number, which on a
+                                   # grid with a marginal cold start does not mean what
+                                   # the eval measures: on case6470_rte's val split,
+                                   # warm 100% converged against cold 4-51%. Turn it off
+                                   # where that gap matters; it costs a full cold Newton
+                                   # solve per case per epoch.
+  # cold_init: which bootstrap a case with NO cached point gets (so: every batch when
+  # warm_start is false, else once per case).
+  #   dc   (default) the model's voltage magnitudes with DC power-flow angles
+  #   flat            the textbook V = 1.0 angle 0
+  # The DC angles are load-bearing on large grids. Measured on case6470_rte, the model's
+  # controls from a flat start converged 0/60 cases at every tolerance down to 1e-01,
+  # against 3% for DC angles + model magnitudes and 94% for DC angles + flat magnitudes
+  # at PQ buses -- the angle spread over 6470 buses is outside Newton's basin from zero.
+  cold_init: dc
+
+runtime:
+  device: cuda
+  min_free_vram_gb: 8.0            # refuse to start below this -- shared machine
+  tf32: true                       # allow TF32 matmul/cudnn on Ampere+; the loss and
+                                   # metrics are computed in float64 regardless

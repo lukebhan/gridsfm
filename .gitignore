@@ -1,0 +1,69 @@
+# ---------------------------------------------------------------------------
+# Large release artifacts. These are published to HuggingFace, not to git:
+#   datasets    -> https://huggingface.co/datasets/lukebhan/gridsfm
+#   checkpoints -> https://huggingface.co/lukebhan/gridsfm
+# Each directory keeps a .gitkeep so a fresh clone has somewhere to put them.
+# ---------------------------------------------------------------------------
+
+# Generated datasets (~25 GB; single files up to 8.4 GB)
+generate_finetune_dataset/data/*
+!generate_finetune_dataset/data/.gitkeep
+
+# Model checkpoints (~4.3 GB; 61 MB per .pt)
+finetune_model/checkpoints/*
+!finetune_model/checkpoints/.gitkeep
+
+# ---------------------------------------------------------------------------
+# Produced by a run; never committed
+# ---------------------------------------------------------------------------
+finetune_model/cache/*
+!finetune_model/cache/.gitkeep
+finetune_model/logs/*
+!finetune_model/logs/.gitkeep
+finetune_model/results/*
+!finetune_model/results/.gitkeep
+
+# dataset-generation scratch space
+**/_staging/
+**/_work/
+*.pid
+nohup.out
+
+# ---------------------------------------------------------------------------
+# Safety net: nothing in this repo is legitimately a checkpoint or a scenario
+# dump, and one stray file of either kind is enough to have a push rejected
+# (GitHub hard-limits files at 100 MB). Use `git add -f` to override.
+# ---------------------------------------------------------------------------
+*.pt
+*.jsonl
+*.npz
+*.ckpt
+*.safetensors
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+*_env/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# ---------------------------------------------------------------------------
+# Tooling / OS / editors
+# ---------------------------------------------------------------------------
+.cache/
+.huggingface/
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/

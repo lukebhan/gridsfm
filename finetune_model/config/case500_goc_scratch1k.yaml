@@ -1,0 +1,219 @@
+# case500_goc no-pretraining ablation: n = 1000 from random init.
+# Launch: scripts/finetune.py --config config/case500_goc_scratch1k.yaml --train_subset 1000 --run_label n1000_scratch --device cuda
+
+# which grid this trains on; picks the dataset and cache subdirectory
+grid_id: case500_goc
+
+# default output name under results/, logs/ and checkpoints/; --run_label overrides it
+run_label: null
+
+# pretrained backbone to fine-tune from (ignored when model.from_scratch is true)
+base_checkpoint: checkpoints/base/gridsfm_open_v2.pt
+
+data:
+  # directory holding the generated datasets, one subdirectory per grid
+  root: ../generate_finetune_dataset/data
+  # this grid's dataset directory; null derives it from root + grid_id
+  dir: null
+  # training split file; null derives it from data.dir
+  train: train_data.jsonl
+  # validation split file, used for epoch selection; null derives it from data.dir
+  val: val_data.jsonl
+  # held-out test split, scored once at the end; null derives it from data.dir
+  test: test_data.jsonl
+  # drop out-of-service generator/load/shunt rows before the forward pass, as the checkpoints were trained
+  drop_offline: true
+
+cache:
+  # where the binary case store is written; null derives it from grid_id
+  dir: null
+  # processes used to build the case store
+  workers: 12
+  # RAM ceiling for the in-memory LRU of decoded cases
+  mem_budget_gb: 6.0
+
+model:
+  # how raw outputs are squashed into the control box; sigmoid reads them as a position inside it
+  clip_mode: sigmoid
+  # which backbone parts to hold fixed; none trains everything
+  freeze: none
+  # build a randomly initialised backbone instead of loading base_checkpoint
+  from_scratch: true
+  # backbone width; only takes effect when from_scratch is true
+  hidden_dim: 64
+  # number of GridBlocks; only takes effect when from_scratch is true
+  num_blocks: 4
+
+loss:
+  # which objective: elastic = self-supervised AC-OPF on the closed state, control = supervised anchor only
+  mode: control
+  # weight on the equality-residual penalty of the elastic loss
+  rho_g: 10.0
+  # weight on the inequality-violation penalty of the elastic loss
+  rho_h: 10.0
+  # target closure-convergence fraction for the merit controller; 0 disables it
+  w_merit_conv_target: 0.0
+  # gradient share the merit controller aims for while convergence is below target
+  w_merit_boost_share: 0.4
+  # hard ceiling on the merit weight, whatever the schedule or controller asks for
+  w_merit_max: 5.0e4
+  # log1p-compress the merit term, matching how the residual penalties are compressed
+  merit_log: false
+  # initial merit weight when it is scheduled rather than constant
+  w_merit_start: 200.0
+  # final merit weight; null keeps it constant at w_merit_start
+  w_merit_end: null
+  # epochs over which the merit weight moves from start to end
+  w_merit_epochs: 100
+  # interpolation used between the start and end merit weights
+  w_merit_schedule: geometric
+  # target gradient share for the anchor when annealing it by share instead of by weight
+  w_control_share_start: 0.75
+  # final anchor gradient share; null makes the plain weight schedule apply instead
+  w_control_share_end: null
+  # epochs over which the anchor's target gradient share moves
+  w_control_share_epochs: 100
+  # interpolation used between the start and end anchor shares
+  w_control_share_schedule: geometric
+  # damping on the anchor-share controller's step
+  w_control_damping: 0.35
+  # per-epoch rate limit on the anchor weight, in log space
+  w_control_max_step: 2.0
+  # damping on the merit controller's step, since its plant gain is very non-stationary
+  w_merit_damping: 0.35
+  # per-epoch rate limit on the merit weight, in log space
+  w_merit_max_step: 2.0
+  # dispatch error is measured in units of this tolerance before weighting
+  tol_pg: 0.01
+  # voltage error is measured in units of this tolerance before weighting
+  tol_v: 0.001
+  # weight on the mean control error in the anchor
+  mean_weight: 1.0
+  # weight on the mean of the k worst control errors in the anchor
+  topk_weight: 1.0
+  # weight on the single worst control error in the anchor
+  max_weight: 0.3
+  # weight on the dispatch part of the anchor
+  w_pg: 1.0
+  # weight on the voltage part of the anchor
+  w_v: 1.0
+  # top-k width for dispatch as a fraction of the generators actually scored
+  topk_pg_frac: 0.0435
+  # top-k width for voltage as a fraction of the control buses actually scored
+  topk_v_frac: 0.0254
+  # absolute top-k width for dispatch; derived from topk_pg_frac when null
+  topk_pg: null
+  # absolute top-k width for voltage; derived from topk_v_frac when null
+  topk_v: null
+  # take top-k within each case, so it cannot span the batch and lose the worst generator
+  segmented_topk: true
+  # take top-k per grid rather than pooling grids in a batch
+  per_grid_topk: true
+  # which anchor pulls toward the reference controls; maxaligned weights the worst control
+  control_form: maxaligned
+  # anchor weight, older scalar form; the trainer falls back to it when w_control_start/end are absent
+  w_control: 5.83
+  # weight on the feasibility-descent (merit) term
+  w_merit: 170.0
+
+closure:
+  # processes the independent Newton power flows are fanned across; 0 or 1 runs them serially
+  workers: 16
+  # initial Newton convergence tolerance
+  tol_start: 0.1
+  # final Newton tolerance; equal to tol_start means no schedule
+  tol_end: 1.0e-08
+  # interpolation used between the start and end Newton tolerances
+  tol_schedule: geometric
+  # iteration cap per power flow; a case that hits it counts as not converged
+  max_newton: 40
+  # enable step-halving in the Newton solve
+  backtrack: true
+  # reuse last epoch's solution as the starting point for a training case
+  warm_start: true
+  # bootstrap for a case with no cached point: dc uses DC angles plus the model's voltage profile
+  cold_init: dc
+  # linear solver factoring the Newton Jacobian; superlu on CPU, cudss on GPU
+  solver: superlu
+  # epochs over which the Newton tolerance moves from start to end
+  tol_epochs: 25
+
+train:
+  # maximum epochs; early stopping usually ends the run sooner
+  epochs: 400
+  # cases per optimiser step before accumulation
+  batch: 16
+  # gradient accumulation steps; effective batch is batch * accum
+  accum: 1
+  # learning rate
+  lr: 0.001
+  # optimiser
+  optimizer: adam
+  # Adam moment decay rates
+  betas: [0.9, 0.999]
+  # Adam denominator epsilon
+  eps: 1.0e-08
+  # L2 weight decay
+  weight_decay: 0.0
+  # momentum, for SGD only
+  momentum: 0.9
+  # use Nesterov momentum, for SGD only
+  nesterov: true
+  # learning-rate schedule
+  scheduler: cosine
+  # floor of the cosine schedule, as a fraction of lr
+  lr_min_frac: 0.05
+  # epochs the cosine is stretched over; 0 uses train.epochs
+  lr_horizon: 0
+  # epochs of linear learning-rate warmup
+  warmup_epochs: 0
+  # learning rate at the start of warmup, as a fraction of lr
+  warmup_start_frac: 0.1
+  # epochs between drops, for the step scheduler only
+  step_size: 10
+  # multiplier applied at each drop, for the step scheduler only
+  step_gamma: 0.5
+  # gradient-norm clip threshold
+  clip_grad: 1.0
+  # measure each loss term's gradient share every N epochs; 0 disables it and the weight controllers
+  grad_probe_every: 0
+  # norm order used for gradient clipping
+  clip_norm_type: 2.0
+  # what the shipped epoch is chosen on; test is never an input
+  select_on: val
+  # epochs without validation improvement before stopping
+  early_stop_patience: 40
+  # improvement below this does not count as progress
+  early_stop_min_delta: 0.0
+  # seed for initialisation and shuffling
+  seed: 0
+  # force deterministic kernels; correct but far slower
+  deterministic: false
+  # early stopping is inert below this epoch
+  min_epochs: 50
+
+eval:
+  # batch size for the validation forward pass
+  batch: 16
+  # batch size for the final test forward pass
+  test_batch: 8
+  # weight on dispatch error in the validation selection score
+  val_score_pg_weight: 1.0
+  # weight on voltage error in the validation selection score
+  val_score_v_weight: 1000.0
+
+runtime:
+  # device to train on
+  device: cuda
+  # refuse to start unless this much GPU memory is free
+  min_free_vram_gb: 6.0
+  # allow TF32 matmuls
+  tf32: true
+
+logging:
+  # steps between per-step log lines
+  step_log_every: 1
+  # epochs between dashboard redraws
+  plot_every_epochs: 1
+  # epochs between periodic checkpoint writes
+  save_every_epochs: 0

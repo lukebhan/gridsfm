@@ -1,0 +1,69 @@
+# 6,470 buses / 761 active gens.
+grid_id: case6470_rte
+topology: topologies/pglib_opf_case6470_rte.m
+
+seeds:
+  master: 20260818                # base for every scenario RNG
+  split: 0                        # train/val/test shuffle
+
+solver:
+  max_iters: 500
+  tol: 1.0e-6
+  acceptable_tol: 1.0e-4
+
+perturbations:
+  # Probability that each mode is applied. Modes COMPOSE: a scenario applies every mode
+  # whose draw succeeds to the same grid, so it can be simultaneously more loaded,
+  # re-dispatched and short a unit. `loads` and `costs` are unconditional; the other
+  # three are gated independently, so 2-4 modes are active at once and never exactly 1.
+  #
+  # `loads` must be 1.0 -- the system load factor is the severity scalar recorded for
+  # every scenario.
+  #
+  # Rates measured in the reference corpus, for comparison:
+  #   loads 100%   costs 100%   killgen 29.7%   derate 19.6%   vsqueeze 14.6%
+  #   modes active at once:  2 = 49.5%   3 = 40.2%   4 = 10.2%
+  mode_probs:
+    loads:    1.0
+    costs:    1.0
+    killgen:  0.30
+    derate:   0.20
+    vsqueeze: 0.15
+
+  # loads. The corpus range is 0.80-1.50, capped at the composed ceiling of 1.20.
+  # `killgen` and `derate` compose with `loads`, so a scenario that trips units has less
+  # capacity than this grid's static ceiling (1.22x) assumes; 1.20 is where measured
+  # feasibility actually ends, not where the static bound sits.
+  # `load_sf_hi` is validated against the static ceiling and REJECTED if above it.
+  load_sf_lo: 0.80
+  load_sf_hi: 1.20
+  load_jitter: 0.10               # per-load spread around the system factor
+
+  # costs. cost_frac is the fraction ENTERING the shuffle, not the fraction swapped: a
+  # same-degree pool with fewer than costs_min_pool members is skipped, so the corpus
+  # measured at most 26.8% of the fleet actually changing curve at cost_frac 0.40.
+  cost_frac: 0.40                 # fraction of online gens entering the shuffle
+  costs_min_pool: 2               # a same-degree bucket smaller than this is skipped
+
+  # killgen
+  killgen_nk: [1, 2, 3]
+  killgen_probs: [0.7, 0.2, 0.1]  # categorical over killgen_nk; must sum to 1.0
+  killgen_min_online: 2           # never trip below this many online generators
+  killgen_pmax_threshold: 0.01    # p.u.; only units above this are trip candidates
+
+  # derate
+  derate_frac: 0.10               # fraction of rated branches derated
+  derate_lo: 0.70                 # per-branch derate factor drawn in [lo, hi]
+  derate_hi: 0.95
+
+  # vsqueeze
+  vsqueeze_frac: 0.10             # fraction of buses whose voltage band narrows
+  vsqueeze_delta: 0.01            # max p.u. shrink per boundary
+
+splits:
+  # Ratios over the FEASIBLE cases produced. Every scenario draws its perturbations from
+  # the same distribution, so a single seeded shuffle is a representative split.
+  # At 2600 feasible: 2000 train / 100 val / 500 test.
+  train: 0.769231
+  val: 0.038462
+  test: 0.192307

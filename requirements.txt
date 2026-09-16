@@ -1,0 +1,20 @@
+# Python dependencies for both subprojects and the bundled `gridsfm` package.
+#
+# Versions below are what the released runs were produced with; they are lower
+# bounds, not pins. PyTorch is listed without a CUDA suffix -- install the build
+# that matches your driver from https://pytorch.org, then install the rest.
+#
+# The solve/export half of generate_finetune_dataset is Julia (>= 1.12), not pip:
+#   julia --project=generate_finetune_dataset/src -e 'using Pkg; Pkg.instantiate()'
+
+torch>=2.8.0
+torch_geometric>=2.8.0
+numpy>=2.5.0
+scipy>=1.18.0
+matplotlib>=3.11.0
+PyYAML>=6.0
+huggingface_hub>=1.28.0
+
+# Optional: only for `closure.solver: cudss`, the GPU linear-solver backend of
+# the elastic training loop. The default (`superlu`, CPU) needs nothing extra.
+# nvmath-python>=1.0.0
