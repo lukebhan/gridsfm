@@ -1,12 +1,12 @@
 <div align="center">
   <a href="https://www.microsoft.com/en-us/research/">
-    <img align="left" src="media/microsoft.png" width="215" height="46" alt="Microsoft Research">
+    <img align="left" src="media/microsoft.png" width="197" height="42" alt="Microsoft Research">
   </a>
   <a href="https://ucsd.edu/">
-    <img src="media/ucsd.png" width="235" height="46" alt="UC San Diego">
+    <img src="media/ucsd.png" width="215" height="42" alt="UC San Diego">
   </a>
   <a href="https://www.washington.edu/">
-    <img align="right" src="media/uw.png" width="399" height="46" alt="University of Washington">
+    <img align="right" src="media/uw.png" width="81" height="56" alt="University of Washington">
   </a>
 </div>
 
