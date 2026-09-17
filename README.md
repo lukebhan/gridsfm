@@ -1,17 +1,3 @@
-<div align="center">
-  <a href="https://www.microsoft.com/en-us/research/">
-    <img align="left" src="media/microsoft.png" width="215" height="46" alt="Microsoft Research">
-  </a>
-  <a href="https://ucsd.edu/">
-    <img src="media/ucsd.png" width="235" height="46" alt="UC San Diego">
-  </a>
-  <a href="https://www.washington.edu/">
-    <img align="right" src="media/uw.png" width="67" height="46" alt="University of Washington">
-  </a>
-</div>
-
-<br> <br>
-
 # GridSFM: A Foundation Model for Solving AC Optimal Power Flow
 
 ## About this repository
@@ -223,7 +209,6 @@ gridsfm/
 │   └── logs/                    training logs
 │
 ├── model/                       the `gridsfm` package, vendored from microsoft/gridSFM
-├── media/                       README images
 ├── requirements.txt             Python dependencies for everything above
 └── LICENSE
 ```
