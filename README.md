@@ -21,60 +21,28 @@ Solving AC Optimal Power Flow"**.
 
 ## Pretrained Resources
 
-Neither is stored in git. Step 4 of Getting Started below downloads them.
+We release both the dataset and models trained in this work. Please see:
 
 ### Datasets: https://huggingface.co/datasets/lukebhan/gridsfm
 
 Solved AC-OPF scenarios for four grids spanning two orders of magnitude:
 `case500_goc` (500 buses), `tx2k` (2,751), `case6470_rte` (6,470) and `activsg10k`
-(10,000). Each holds **2,600 scenarios proven feasible by Ipopt**, published as a fixed
-2,000 / 100 / 500 train / val / test split that the training harness reads verbatim and
-never re-shuffles.
-
-A scenario is the base grid with several perturbations composed on top of it. Demand is
-scaled, generator merit order reshuffled, units tripped, branches derated and voltage
-bands tightened, and the result is then solved to optimality. Every case carries the full grid, the optimal
-solution, the duals, and metadata recording which perturbations fired and how hard. About
-25 GB in total, from 0.72 GB for `case500_goc` to 11 GB for `activsg10k`.
+(10,000).
 
 ### Models: https://huggingface.co/lukebhan/gridsfm
 
-Seven checkpoints per grid, 28 in all. Six are the **data-scaling series**, the same
-fine-tuning recipe at 10, 25, 50, 100, 200 and 500 training cases. The seventh,
-`n1000_scratch`, is the **no-pretraining control**: identical harness, random
-initialisation, 1,000 cases, which is what shows the pretrained backbone is doing the
-work. Also included is `base/gridsfm_open_v2.pt`, the upstream Microsoft backbone every
-fine-tune starts from.
-
-Each run directory ships `control_model.pt` (the weights the paper reports), plus
-`best_val.pt` and `last.pt`. See
-[`finetune_model/README.md`](finetune_model/README.md) for the full breakdown and loading
-code. About 4.3 GB in total.
-
-If you regenerate either, place checkpoints under
-`finetune_model/checkpoints/<grid_id>/<run_label>/` and datasets under
-`generate_finetune_dataset/data/<grid_id>/`.
+All finetuned models developed in this work. 
 
 ### Upstream GridSFM
 
-This work builds on the original GridSFM release from Microsoft Research. **Everything in
-[`model/`](model/) is their code, vendored unmodified apart from deletions** so this
-repository runs standalone. See [`model/README.md`](model/README.md) for exactly what was
-kept, what was removed and why. It is MIT-licensed, copyright Microsoft Corporation.
+This work utilizes a backbone of a pretrained model from the whitepaper release of GridSFM. 
+Here are the 
+relevant resources.
 
 - **Source:** https://github.com/microsoft/gridSFM
 - **Released backbones:** https://huggingface.co/microsoft/GridSFM_Open
 - **US power-grid dataset:** https://huggingface.co/datasets/microsoft/GridSFM_US_power_grid
-
-Every fine-tune here starts from `GridSFM-open-v2` (15.1 M parameters), which lives at
-`finetune_model/checkpoints/base/gridsfm_open_v2.pt`. To pull a release checkpoint
-directly:
-
-```python
-from gridsfm import load_from_hf
-model = load_from_hf("microsoft/GridSFM_Open", device="cuda")
-```
-
+- 
 ## Getting Started
 
 ### 1. Clone and create an environment
@@ -185,9 +153,7 @@ The generator looks for the binary at `~/.local/bin/julia`. If yours is elsewher
 
 ## Quick Start
 
-The published datasets and checkpoints are what the released numbers come from, so the
-fastest path is to evaluate rather than retrain. Build the prepared-case cache once per
-grid, then fine-tune a point of the data-scaling curve:
+Simple example on how to finetune your own model on the 500 bus grid.
 
 ```bash
 cd finetune_model
@@ -202,18 +168,6 @@ python scripts/prep_cache.py --config config/case500_goc_finetune.yaml
 python scripts/finetune.py --config config/case500_goc_finetune.yaml \
     --train_subset 100 --run_label n0100 --device cuda
 ```
-
-Additional entry points:
-
-- `bash scripts/train_grid.sh case500_goc --go` drives the whole `n = 10 … 500` series
-  across whatever GPUs are idle.
-- `bash scripts/train_grid.sh case500_goc --scratch --go` runs the no-pretraining control.
-- `python generate_finetune_dataset/scripts/validate_dataset.py --dir data/case500_goc`
-  audits a published dataset and replays its generation statistics.
-
-Each run writes figures, per-epoch and per-step history, timings and a resolved config to
-`finetune_model/results/<grid_id>/<run_label>/`, and the shipped weights to
-`finetune_model/checkpoints/<grid_id>/<run_label>/control_model.pt`.
 
 ## Training from Scratch
 
@@ -231,19 +185,10 @@ python scripts/validate_config.py
 python scripts/generate_finetune_dataset.py --config config/tx2k.yaml \
     --total_num_feasible 5 --num_workers 5 --dry_run
 
-# the real thing
+# the full run
 python scripts/generate_finetune_dataset.py --config config/tx2k.yaml \
     --num_workers 196 --total_num_feasible 2600
 ```
-
-Budget ~1–2 GB of RAM per worker on a 10k-bus grid. On a 256-core host at 196 workers the
-released runs took 3.7 min (`case500_goc`) to 87 min (`case6470_rte`) of wall clock,
-against 3.3 h to 233 h of aggregate solver time.
-
-Regeneration is exact: every scenario RNG is seeded from
-`SHA-256("master | grid_id | mode | scenario_index")`, derived from the grid's *name*
-rather than its file path, so the same config reproduces the same scenarios on any
-machine or Julia version.
 
 Then train:
 
