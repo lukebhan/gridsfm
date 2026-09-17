@@ -35,7 +35,7 @@
 #         "features":  [ [angmin, angmax, b_fr, b_to,                  # 9 cols
 #                         br_r, br_x, rate_a, rate_b, rate_c], ... ]
 #                      # rate_a/b/c are NORMALIZED by _rates(): if rate_b is
-#                      # missing or zero it falls back to rate_a; rate_c
+#                      # missing or zero it falls back to rate_a, rate_c
 #                      # falls back to rate_b. Consumers never need to
 #                      # re-apply this fallback.
 #       },
@@ -89,10 +89,10 @@
 #
 # Conventions:
 #   - All numeric values are per-unit on the model's baseMVA (exceptions:
-#     `base_kv` is nameplate kV; `tap` is a nameplate ratio).
+#     `base_kv` is nameplate kV, `tap` is a nameplate ratio).
 #   - All angles are radians.
 #   - Edge `senders` / `receivers` are 0-indexed row positions into the bus
-#     node array — handy for direct PyG tensor construction on the Python
+#     node array, handy for direct PyG tensor construction on the Python
 #     side. Original PowerModels ids are retained in metadata id_maps for
 #     round-tripping.
 #   - Solution / dual fields are zeroed out when `termination_status` is NOT
@@ -117,12 +117,12 @@ PowerModels.silence()
 
 # Is a branch actually a transformer? Off-nominal tap or non-zero phase
 # shift both qualify. (PowerModels sometimes has an explicit "transformer"
-# flag; fall back on tap/shift if absent.)
+# flag, fall back on tap/shift if absent.)
 _is_xfmr(b) = haskey(b,"transformer") ? b["transformer"] :
               (abs(get(b,"tap",1.0)-1.0) > 1e-8 || abs(get(b,"shift",0.0)) > 1e-8)
 
 
-# Normalize rate_a/b/c: missing rate_b defaults to rate_a; missing rate_c
+# Normalize rate_a/b/c: missing rate_b defaults to rate_a, missing rate_c
 # defaults to rate_b. Mirrors PowerModels' handling.
 function _rates(b)
     ra = get(b,"rate_a",0.0)
@@ -198,7 +198,7 @@ function build_gridsfm_data(pm, result, data)
     bids = [id for (id,_) in bv]
     bmap = Dict(id => i-1 for (i,id) in enumerate(bids))  # orig id → 0-indexed row
 
-    # ── Generators (ALL rows; availability = gen_status) ──────
+    # ── Generators (ALL rows, availability = gen_status) ──────
     # LEAK GUARD: pg/qg/vg are the OPF SOLUTION (the dispatch being PREDICTED),
     # not problem inputs, so feeding them would leak the answer. They carry a
     # neutral, solution-free MIDPOINT prior instead: pg=(pmin+pmax)/2,
@@ -213,11 +213,11 @@ function build_gridsfm_data(pm, result, data)
                   Int(get(g, "gen_status", get(g, "status", 1))) == 1 ? 1.0 : 0.0]
           for (_,g) in gv]
 
-    # ── Loads (ALL rows; availability = status) ────────────────
+    # ── Loads (ALL rows, availability = status) ────────────────
     lv = sort([(parse(Int,k), l) for (k,l) in get(data, "load", Dict{String,Any}())]; by=first)
     lf = [[l["pd"], l["qd"], get(l, "status", 1) != 0 ? 1.0 : 0.0] for (_,l) in lv]
 
-    # ── Shunts (ALL rows; availability = status) ───────────────
+    # ── Shunts (ALL rows, availability = status) ───────────────
     sv = sort([(parse(Int,k), s) for (k,s) in get(data, "shunt", Dict{String,Any}())]; by=first)
     sf = [[s["bs"], s["gs"], get(s, "status", 1) != 0 ? 1.0 : 0.0] for (_,s) in sv]
 
@@ -236,7 +236,7 @@ function build_gridsfm_data(pm, result, data)
         # Default ±π/2 RADIANS: PowerModels stores angles in radians after
         # parsing, so a degree-valued default would export ≈20626° of slack.
         amin, amax = get(b, "angmin", -π/2), get(b, "angmax", π/2)
-        f4 = Float64[0,0,0,0]   # [pt, qt, pf, qf] — zeros if no solution
+        f4 = Float64[0,0,0,0]   # [pt, qt, pf, qf], zeros if no solution
         if rb !== nothing
             s = get(rb, string(bid), nothing)
             s !== nothing && (f4 = Float64[s["pt"], s["qt"], s["pf"], s["qf"]])
@@ -256,7 +256,7 @@ function build_gridsfm_data(pm, result, data)
     end
 
     # ── Link edges (generator→bus, load→bus, shunt→bus) ───────
-    # senders = 0-indexed row into the respective node array;
+    # senders = 0-indexed row into the respective node array,
     # receivers = 0-indexed bus row the component is attached to.
     gls = collect(0:length(gv)-1); glr = [bmap[g["gen_bus"]]   for (_,g) in gv]
     lls = collect(0:length(lv)-1); llr = [bmap[l["load_bus"]]  for (_,l) in lv]
@@ -289,11 +289,11 @@ function build_gridsfm_data(pm, result, data)
 
     # Bus: [λ_p, λ_q, μ_vmin, μ_vmax]. JuMP orders its nonlinear equality
     # constraints so the two per-bus balance eqs come in pairs. The position
-    # match assumes every bus has a balance pair; that holds only when all
+    # match assumes every bus has a balance pair, that holds only when all
     # buses are in service. If it doesn't (e.g. a type-4 isolated bus), fall
     # back to a FULL-LENGTH zero `db` so it still aligns row-for-row with the
     # bus feature array `bf` (leaving it empty misaligned the va/vm labels).
-    # (Duals are not consumed by the training pipeline; correctness here is
+    # (Duals are not consumed by the training pipeline, correctness here is
     # about tensor-shape alignment, not dual values.)
     nle = all_constraints(jm, NonlinearExpr, MOI.EqualTo{Float64})
     nb = length(bv)
@@ -379,7 +379,7 @@ function build_gridsfm_data(pm, result, data)
         ),
     )
 
-    # Zero solution fields on infeasible — preserves tensor shape so the
+    # Zero solution fields on infeasible, preserves tensor shape so the
     # Python loader never needs to handle missing fields.
     if !feas
         sol = opf["solution"]

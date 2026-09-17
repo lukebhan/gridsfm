@@ -217,7 +217,7 @@ def plot_elastic_training(hist: dict, outdir: str, zero_shot: dict | None = None
     # EPOCH 0 = the zero-shot state, prepended so every series starts where the run
     # actually started. The first epoch's move is normally the largest of the whole run
     # (the closure converging), and beginning the axis at epoch 1 hides it. Only keys
-    # the zero-shot eval actually measured are prepended; the rest (lr, w_control,
+    # the zero-shot eval actually measured are prepended, the rest (lr, w_control,
     # epoch_sec) have no epoch-0 value and keep their own, shorter x.
     if zero_shot is not None and hist.get("epoch"):
         _Z = {"elastic_loss": "loss", "val_elastic_loss": "loss", "cost": "cost",
@@ -314,7 +314,7 @@ def plot_elastic_training(hist: dict, outdir: str, zero_shot: dict | None = None
     a.xaxis.set_major_locator(MaxNLocator(integer=True))
     a.set_yscale("log"); a.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-    # -- (2,1) loss components (the GT anchor is excluded; noted in the title) --
+    # -- (2,1) loss components (the GT anchor is excluded, noted in the title) --
     a = _style(ax[2][1], "Loss components", "epoch", "value")
     # `cost` in the history is cost_RAW, not cost*cost_scale -- elastic_loss records
     # cost_raw in its diagnostics while the loss uses the scaled value. Labelling it
@@ -411,7 +411,7 @@ def plot_elastic_training(hist: dict, outdir: str, zero_shot: dict | None = None
                    color=INK_MUTED, fontsize=8, va="bottom")
     a.set_ylim(0, 100); a.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-    # (2,4) THE GT-ANCHOR LOSS. Every other panel showed the physics; this term was in
+    # (2,4) THE GT-ANCHOR LOSS. Every other panel showed the physics, this term was in
     # the objective and plotted nowhere, which is why the figure used to carry the note
     # "objective includes GT anchor (not plotted)".
     #
@@ -446,7 +446,7 @@ def plot_elastic_training(hist: dict, outdir: str, zero_shot: dict | None = None
     # figure, which stopped being true when the default became the max-aligned
     # mean+top-k+max form -- a plot that misnames the objective it is describing is
     # worse than one that says nothing.
-    # The anchor used to be absent from the figure; panel (2,4) plots it now, so the
+    # The anchor used to be absent from the figure, panel (2,4) plots it now, so the
     # old "(not plotted)" disclaimer would be wrong.
     note = ""
     fig.suptitle("Elastic fine-tune  |  live" + note, color=INK, fontsize=12, x=0.01, ha="left")

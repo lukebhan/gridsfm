@@ -113,7 +113,7 @@ def build(cfg: dict, splits=("train", "val", "test")) -> dict:
                 nfail += 1
                 continue
             keys.append(key)
-            key_modes.append(mode)          # aligned with `keys`; lets a training-set
+            key_modes.append(mode)          # aligned with `keys`, lets a training-set
             # subset be stratified by perturbation mode instead of sampled blindly
             modes[mode] = modes.get(mode, 0) + 1
             tot_g += ng; tot_v += nv; tot_b += nb; n_ok += 1

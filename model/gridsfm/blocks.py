@@ -21,7 +21,7 @@ DEFAULT_INPUT_DIMS = {
     'shunt':     2 + 1,               # +1 = availability
     'branch_ac': 9 + 1,               # raw + avail(col 9) (DC PE removed)
     'branch_tr': 11 + 1,              # raw + avail(col 11) (DC PE removed)
-    'cycle':     4,                   # derived node; no availability
+    'cycle':     4,                   # derived node, no availability
 }
 
 _SIGNED_INCIDENCE_TYPES = {
@@ -401,9 +401,9 @@ class FusionLayer(nn.Module):
             return ((h.get(nt, empty_h), data[nt].batch) if present
                     else (empty_h, empty_b))
 
-        # Per-type (mean, max) pooled to a single d-vector each; concat
+        # Per-type (mean, max) pooled to a single d-vector each, concat
         # interleaved as 8*d for W_global. Layout drives the cross-version
-        # adapter; keep mean/max paired per type.
+        # adapter, keep mean/max paired per type.
         mean_bus, max_bus = _pool_per_type(h_grid_bus, bus_batch)
         mean_ac,  max_ac  = _pool_per_type(*_hb('branch_ac'))
         mean_tr,  max_tr  = _pool_per_type(*_hb('branch_tr'))

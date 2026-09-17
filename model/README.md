@@ -1,17 +1,10 @@
-# `model/` — vendored from Microsoft GridSFM
+# `model/`: vendored from Microsoft GridSFM
 
 **Every line of code in this directory comes from
 [github.com/microsoft/gridSFM](https://github.com/microsoft/gridSFM)** ("GridSFM: Small
-Foundation Models for the Power Grid", Microsoft Research). It is not our work. It is
-copied here, unmodified apart from the deletions noted below, so that this repository runs
-standalone without a separate `gridsfm` install.
-
-**License: MIT**, as upstream. Copyright belongs to Microsoft Corporation and the GridSFM
-authors.
-
-Report bugs, request features and take updates **upstream** — not here. This copy is
-pinned for reproducibility of the fine-tuning results in this repository, and will drift
-from upstream over time.
+Foundation Models for the Power Grid", Microsoft Research). It is copied here, unmodified
+apart from the deletions noted below, so that this repository runs standalone without a
+separate `gridsfm` install.
 
 | | |
 |---|---|
@@ -23,7 +16,7 @@ from upstream over time.
 ## What this copy contains
 
 Upstream's `model/` package, reduced to the inference path that `finetune_model/` actually
-imports — `checkpoint.load_model`, `data.*`, `model.GridTransformerBackbone` and
+imports: `checkpoint.load_model`, `data.*`, `model.GridTransformerBackbone` and
 `schema.*`, plus everything those pull in transitively.
 
 ```
@@ -45,7 +38,7 @@ gridsfm/
 ### Removed from the upstream package
 
 These are upstream features that nothing in this repository imports. They were deleted to
-keep the vendored copy to what is actually exercised here — **use upstream if you want
+keep the vendored copy to what is actually exercised here. **Use upstream if you want
 them**:
 
 | removed | what it was |
@@ -63,24 +56,14 @@ is not needed.
 
 ### Modifications to the files that remain
 
-The trimming touched two files; no other file was edited here. To confirm what this copy
+The trimming touched two files. No other file was edited here. To confirm what this copy
 carries relative to a given upstream revision, diff `gridsfm/` against
 `model/gridsfm/` in a clone of the upstream repository.
 
-- **`__init__.py`** — the imports and `__all__` entries for the deleted modules were
+- **`__init__.py`**: the imports and `__all__` entries for the deleted modules were
   removed, and `drop_offline_rows` was added to `__all__`. The consequence is that
   `compute_loss`, `eval_pass`, `finetune_opfdata`, `OPFDataAdapterDataset` and
   `SyntheticMixedDataset` are **not importable from this copy**. Inference,
   `GridTransformerBackbone` and `predict()` are unchanged.
-- **`stress_features.py`** — two comments that pointed at the deleted `loss.py` were
+- **`stress_features.py`**: two comments that pointed at the deleted `loss.py` were
   reworded. No code change.
-
-## Citation
-
-If you use this model, cite the upstream work rather than this repository:
-
-> Yang et al. (2026). *GridSFM: A Foundation Model for AC Optimal Power Flow.* Microsoft
-> Research.
-
-The canonical BibTeX and the companion power-grid pipeline paper (Britto et al., 2026) are
-in the [upstream README](https://github.com/microsoft/gridSFM).

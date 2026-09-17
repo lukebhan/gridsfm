@@ -9,7 +9,7 @@ documents the generator itself.
 ```
 config/       one YAML per grid: topology, seeds, perturbation ranges, split ratios
 topologies/   Matpower .m files
-src/          Python orchestration + Julia solve/export; Project.toml is the Julia env
+src/          Python orchestration + Julia solve/export, with Project.toml as the Julia env
 scripts/      entry points
 data/         the published datasets
 ```
@@ -34,8 +34,8 @@ the four differ only in grid and load range.
 
 *ceiling* is the static lossless capacity bound `ΣPmax / ΣPd` over active generators.
 `tx2k` is the one grid whose range deliberately breaches it
-(`allow_load_sf_above_ceiling: true`), to keep diversity at the top of the load range;
-that costs solve time, not dataset quality, since only feasible cases are published.
+(`allow_load_sf_above_ceiling: true`), to keep diversity at the top of the load range.
+That costs solve time, not dataset quality, since only feasible cases are published.
 `activsg10k` trips 2–6 units because tripping 1 of 1,937 is not a perturbation at that
 scale.
 
@@ -70,27 +70,28 @@ sampling.
 Modes **compose**: a scenario applies every mode whose `mode_probs` draw succeeds to the
 same grid, so it can be simultaneously more loaded, re-dispatched and short a unit. A
 gate is drawn for every mode even at probability 1.0, so the RNG stream does not depend
-on the probability *values* — lowering `killgen` from 0.30 to 0.20 changes which
+on the probability *values*. Lowering `killgen` from 0.30 to 0.20 changes which
 scenarios trip a unit without also reshuffling every load factor.
 
-`loads` and `costs` are unconditional; the rest are gated independently, so **2–4 modes
+`loads` and `costs` are unconditional, and the rest are gated independently, so **2–4 modes
 are active at once and never exactly 1** (mean 2.65 across all four datasets). Order is
-fixed at `loads → costs → killgen → derate → vsqueeze`; `costs` must precede `killgen`,
+fixed at `loads → costs → killgen → derate → vsqueeze`. `costs` must precede `killgen`,
 since it reshuffles the merit order over units that are still online.
 
 | mode | what it does | severity recorded |
 |---|---|---|
 | `loads` | one system factor `sf ~ U[lo, hi]`, then every load's `pd`/`qd` scaled by `sf · U[1±jitter]` | `sf` |
-| `costs` | picks `cost_frac` of online gens, buckets by cost-function degree, permutes cost vectors **within** each bucket. Degree preserved; what changes is *which* units are cheap | % of gens whose curve moved |
+| `costs` | picks `cost_frac` of online gens, buckets by cost-function degree, permutes cost vectors **within** each bucket. Degree preserved, and what changes is *which* units are cheap | % of gens whose curve moved |
 | `killgen` | trips `k` units, `k` from `killgen_nk` by inverse CDF. Candidates are online units above `killgen_pmax_threshold`, clamped so `killgen_min_online` stay up | units tripped |
 | `derate` | scales `rate_a`/`b`/`c` by `U[derate_lo, derate_hi]` on `derate_frac` of in-service **rated** branches, independently per branch | mean derate factor |
-| `vsqueeze` | on `vsqueeze_frac` of buses, raises `vmin` and lowers `vmax` by draws in `[0, vsqueeze_delta]`; a band that would invert reverts | mean band shrink (p.u.) |
+| `vsqueeze` | on `vsqueeze_frac` of buses, raises `vmin` and lowers `vmax` by draws in `[0, vsqueeze_delta]`, and a band that would invert reverts | mean band shrink (p.u.) |
 
-`cost_frac` is the fraction *entering* the shuffle, not the fraction swapped — a
+`cost_frac` is the fraction *entering* the shuffle, not the fraction swapped. A
 same-degree pool smaller than `costs_min_pool` is skipped, so at `cost_frac: 0.40` the
 released runs measured 22.9–31.2% of the fleet actually changing curve.
 
 Because modes compose, a case cannot be attributed to a single mode, so yield is reported
 **marginally**: each row covers the scenarios in which that mode fired, and the rows
-overlap. `derate` is consistently the worst — 36% yield on `tx2k`, 41% on `case6470_rte`
-against ~60% overall — because congesting branches composes badly with a high load factor.
+overlap. `derate` is consistently the worst, at 36% yield on `tx2k` and 41% on
+`case6470_rte` against ~60% overall, because congesting branches composes badly with a
+high load factor.

@@ -121,7 +121,7 @@ function mode_derate!(d, rng, p)
         haskey(b, "rate_b") && (b["rate_b"] *= f)
         haskey(b, "rate_c") && (b["rate_c"] *= f)
     end
-    # Severity is the MEAN derate factor; the affected-branch count is fixed by
+    # Severity is the MEAN derate factor, the affected-branch count is fixed by
     # derate_frac and so carries no information.
     Dict("n_lines_derated" => nd,
          "derate_factor_mean" => round(sum(fs)/length(fs), digits=4),
@@ -194,7 +194,7 @@ function apply_composed!(d, rng, p)
     fired = String[]
     for name in COMPOSE_ORDER
         pr = Float64(get(probs, name, 0.0))
-        gate = rand(rng)                      # drawn unconditionally; see docstring
+        gate = rand(rng)                      # drawn unconditionally, see docstring
         (pr <= 0.0 || gate >= pr) && continue
         for (k, v) in MODE_FNS[name](d, rng, p)
             extra[k] = v

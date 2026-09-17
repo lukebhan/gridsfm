@@ -1,10 +1,10 @@
 # case500_goc no-pretraining ablation: n = 1000 from random init.
 # Launch: scripts/finetune.py --config config/case500_goc_scratch1k.yaml --train_subset 1000 --run_label n1000_scratch --device cuda
 
-# which grid this trains on; picks the dataset and cache subdirectory
+# which grid this trains on, picks the dataset and cache subdirectory
 grid_id: case500_goc
 
-# default output name under results/, logs/ and checkpoints/; --run_label overrides it
+# default output name under results/, logs/ and checkpoints/, --run_label overrides it
 run_label: null
 
 # pretrained backbone to fine-tune from (ignored when model.from_scratch is true)
@@ -13,19 +13,19 @@ base_checkpoint: checkpoints/base/gridsfm_open_v2.pt
 data:
   # directory holding the generated datasets, one subdirectory per grid
   root: ../generate_finetune_dataset/data
-  # this grid's dataset directory; null derives it from root + grid_id
+  # this grid's dataset directory, null derives it from root + grid_id
   dir: null
-  # training split file; null derives it from data.dir
+  # training split file, null derives it from data.dir
   train: train_data.jsonl
-  # validation split file, used for epoch selection; null derives it from data.dir
+  # validation split file, used for epoch selection, null derives it from data.dir
   val: val_data.jsonl
-  # held-out test split, scored once at the end; null derives it from data.dir
+  # held-out test split, scored once at the end, null derives it from data.dir
   test: test_data.jsonl
   # drop out-of-service generator/load/shunt rows before the forward pass, as the checkpoints were trained
   drop_offline: true
 
 cache:
-  # where the binary case store is written; null derives it from grid_id
+  # where the binary case store is written, null derives it from grid_id
   dir: null
   # processes used to build the case store
   workers: 12
@@ -33,15 +33,15 @@ cache:
   mem_budget_gb: 6.0
 
 model:
-  # how raw outputs are squashed into the control box; sigmoid reads them as a position inside it
+  # how raw outputs are squashed into the control box, sigmoid reads them as a position inside it
   clip_mode: sigmoid
-  # which backbone parts to hold fixed; none trains everything
+  # which backbone parts to hold fixed, none trains everything
   freeze: none
   # build a randomly initialised backbone instead of loading base_checkpoint
   from_scratch: true
-  # backbone width; only takes effect when from_scratch is true
+  # backbone width, only takes effect when from_scratch is true
   hidden_dim: 64
-  # number of GridBlocks; only takes effect when from_scratch is true
+  # number of GridBlocks, only takes effect when from_scratch is true
   num_blocks: 4
 
 loss:
@@ -51,7 +51,7 @@ loss:
   rho_g: 10.0
   # weight on the inequality-violation penalty of the elastic loss
   rho_h: 10.0
-  # target closure-convergence fraction for the merit controller; 0 disables it
+  # target closure-convergence fraction for the merit controller, 0 disables it
   w_merit_conv_target: 0.0
   # gradient share the merit controller aims for while convergence is below target
   w_merit_boost_share: 0.4
@@ -61,7 +61,7 @@ loss:
   merit_log: false
   # initial merit weight when it is scheduled rather than constant
   w_merit_start: 200.0
-  # final merit weight; null keeps it constant at w_merit_start
+  # final merit weight, null keeps it constant at w_merit_start
   w_merit_end: null
   # epochs over which the merit weight moves from start to end
   w_merit_epochs: 100
@@ -69,7 +69,7 @@ loss:
   w_merit_schedule: geometric
   # target gradient share for the anchor when annealing it by share instead of by weight
   w_control_share_start: 0.75
-  # final anchor gradient share; null makes the plain weight schedule apply instead
+  # final anchor gradient share, null makes the plain weight schedule apply instead
   w_control_share_end: null
   # epochs over which the anchor's target gradient share moves
   w_control_share_epochs: 100
@@ -101,31 +101,31 @@ loss:
   topk_pg_frac: 0.0435
   # top-k width for voltage as a fraction of the control buses actually scored
   topk_v_frac: 0.0254
-  # absolute top-k width for dispatch; derived from topk_pg_frac when null
+  # absolute top-k width for dispatch, derived from topk_pg_frac when null
   topk_pg: null
-  # absolute top-k width for voltage; derived from topk_v_frac when null
+  # absolute top-k width for voltage, derived from topk_v_frac when null
   topk_v: null
   # take top-k within each case, so it cannot span the batch and lose the worst generator
   segmented_topk: true
   # take top-k per grid rather than pooling grids in a batch
   per_grid_topk: true
-  # which anchor pulls toward the reference controls; maxaligned weights the worst control
+  # which anchor pulls toward the reference controls, maxaligned weights the worst control
   control_form: maxaligned
-  # anchor weight, older scalar form; the trainer falls back to it when w_control_start/end are absent
+  # anchor weight, older scalar form, the trainer falls back to it when w_control_start/end are absent
   w_control: 5.83
   # weight on the feasibility-descent (merit) term
   w_merit: 170.0
 
 closure:
-  # processes the independent Newton power flows are fanned across; 0 or 1 runs them serially
+  # processes the independent Newton power flows are fanned across, 0 or 1 runs them serially
   workers: 16
   # initial Newton convergence tolerance
   tol_start: 0.1
-  # final Newton tolerance; equal to tol_start means no schedule
+  # final Newton tolerance, equal to tol_start means no schedule
   tol_end: 1.0e-08
   # interpolation used between the start and end Newton tolerances
   tol_schedule: geometric
-  # iteration cap per power flow; a case that hits it counts as not converged
+  # iteration cap per power flow, a case that hits it counts as not converged
   max_newton: 40
   # enable step-halving in the Newton solve
   backtrack: true
@@ -133,17 +133,17 @@ closure:
   warm_start: true
   # bootstrap for a case with no cached point: dc uses DC angles plus the model's voltage profile
   cold_init: dc
-  # linear solver factoring the Newton Jacobian; superlu on CPU, cudss on GPU
+  # linear solver factoring the Newton Jacobian, superlu on CPU, cudss on GPU
   solver: superlu
   # epochs over which the Newton tolerance moves from start to end
   tol_epochs: 25
 
 train:
-  # maximum epochs; early stopping usually ends the run sooner
+  # maximum epochs, early stopping usually ends the run sooner
   epochs: 400
   # cases per optimiser step before accumulation
   batch: 16
-  # gradient accumulation steps; effective batch is batch * accum
+  # gradient accumulation steps, effective batch is batch * accum
   accum: 1
   # learning rate
   lr: 0.001
@@ -163,7 +163,7 @@ train:
   scheduler: cosine
   # floor of the cosine schedule, as a fraction of lr
   lr_min_frac: 0.05
-  # epochs the cosine is stretched over; 0 uses train.epochs
+  # epochs the cosine is stretched over, 0 uses train.epochs
   lr_horizon: 0
   # epochs of linear learning-rate warmup
   warmup_epochs: 0
@@ -175,11 +175,11 @@ train:
   step_gamma: 0.5
   # gradient-norm clip threshold
   clip_grad: 1.0
-  # measure each loss term's gradient share every N epochs; 0 disables it and the weight controllers
+  # measure each loss term's gradient share every N epochs, 0 disables it and the weight controllers
   grad_probe_every: 0
   # norm order used for gradient clipping
   clip_norm_type: 2.0
-  # what the shipped epoch is chosen on; test is never an input
+  # what the shipped epoch is chosen on, test is never an input
   select_on: val
   # epochs without validation improvement before stopping
   early_stop_patience: 40
@@ -187,7 +187,7 @@ train:
   early_stop_min_delta: 0.0
   # seed for initialisation and shuffling
   seed: 0
-  # force deterministic kernels; correct but far slower
+  # force deterministic kernels, correct but far slower
   deterministic: false
   # early stopping is inert below this epoch
   min_epochs: 50

@@ -17,7 +17,7 @@ solver:
 perturbations:
   # Probability that each mode is applied. Modes COMPOSE: a scenario applies every mode
   # whose draw succeeds to the same grid, so it can be simultaneously more loaded,
-  # re-dispatched and short a unit. `loads` and `costs` are unconditional; the other
+  # re-dispatched and short a unit. `loads` and `costs` are unconditional, the other
   # three are gated independently, so 2-4 modes are active at once and never exactly 1.
   #
   # `loads` must be 1.0 -- the system load factor is the severity scalar recorded for
@@ -49,9 +49,9 @@ perturbations:
 
   # killgen
   killgen_nk: [2, 4, 6]
-  killgen_probs: [0.7, 0.2, 0.1]  # categorical over killgen_nk; must sum to 1.0
+  killgen_probs: [0.7, 0.2, 0.1]  # categorical over killgen_nk, must sum to 1.0
   killgen_min_online: 2           # never trip below this many online generators
-  killgen_pmax_threshold: 0.01    # p.u.; only units above this are trip candidates
+  killgen_pmax_threshold: 0.01    # p.u., only units above this are trip candidates
 
   # derate
   derate_frac: 0.10               # fraction of rated branches derated

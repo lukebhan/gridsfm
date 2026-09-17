@@ -72,7 +72,7 @@ class GridTransformerBackbone(nn.Module):
         self.hidden_dim = hidden_dim
         self.num_blocks = num_blocks
         self.leaky_alpha = float(leaky_alpha)
-        # 'clamp' = released hard clamp (dead gradient at limits); 'sigmoid' = smooth
+        # 'clamp' = released hard clamp (dead gradient at limits), 'sigmoid' = smooth
         # strictly-in-range squash (live gradient everywhere). Set externally for fine-tuning.
         self.clip_mode = 'clamp'
         self.theta_res_scale = float(theta_res_scale)

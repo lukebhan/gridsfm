@@ -30,7 +30,7 @@ import scipy.sparse as sp
 import torch
 from nvmath.sparse.advanced import DirectSolver, DirectSolverOptions
 
-# cuDSS planning emits an info-level note when no multithreading layer is set; we
+# cuDSS planning emits an info-level note when no multithreading layer is set, we
 # supply one below, and silence the rest of nvmath's chatter in the training log.
 logging.getLogger("nvmath").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", message=".*multithreading interface library.*")
@@ -98,7 +98,7 @@ class CudssFactor:
         if (Jc.nnz != self._vals.numel()
                 or not np.array_equal(Jc.indptr, self._indptr0)
                 or not np.array_equal(Jc.indices, self._indices0)):
-            # Pattern drifted (should not happen within a single case); re-plan.
+            # Pattern drifted (should not happen within a single case), re-plan.
             self.free()
             self.__init__(J)
             Jc = _csr_sorted(J)

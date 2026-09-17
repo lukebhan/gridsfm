@@ -10,7 +10,7 @@
 #   CAND="0 6" bash scripts/train_grid.sh <grid> --go      # restrict the device pool
 #
 # <grid> is one of activsg10k, tx2k, case6470_rte, case500_goc. The config is
-# config/<grid>_finetune.yaml, or config/<grid>_scratch1k.yaml with --scratch; both are
+# config/<grid>_finetune.yaml, or config/<grid>_scratch1k.yaml with --scratch, both are
 # self-contained, so the recipe is whatever that one file says.
 #
 # RUN LABELS are n<nnnn> (n0010 ... n0500) and n1000_scratch, which is what results/,

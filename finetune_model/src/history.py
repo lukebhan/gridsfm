@@ -23,7 +23,7 @@ EPOCH_COLS = ["epoch", "loss", "loss_pg", "loss_v", "val_pg", "val_v", "val_scor
               # --- per-term GRADIENT share (train.grad_probe_every > 0) ---
               # gshare_X = ||g_X|| / sum_i ||g_i||     : relative magnitude.
               # gproj_X  = (g_X . g_tot)/||g_tot||^2   : share of the REALISED step
-              #   direction; sums to 100% across terms, and is NEGATIVE for a term
+              #   direction, sums to 100% across terms, and is NEGATIVE for a term
               #   pulling against the consensus. Both are recorded because they
               #   disagree whenever terms fight each other -- on case6470_rte the GT
               #   anchor sits at cos = -0.89 to the equality residual, so magnitude
@@ -36,7 +36,7 @@ EPOCH_COLS = ["epoch", "loss", "loss_pg", "loss_v", "val_pg", "val_v", "val_scor
               "gproj_cost",
               # --- PCGrad (loss.pcgrad) ---
               # pcgrad_cos: cosine between the NAIVE summed gradient and the projected
-              #   one. 1.0 = surgery changed nothing (no conflicts); lower = the terms
+              #   one. 1.0 = surgery changed nothing (no conflicts), lower = the terms
               #   were fighting and the step was redirected.
               # pcgrad_conflicts: mean number of conflicting ORDERED term pairs per
               #   batch (max = k*(k-1) for k terms).
@@ -51,7 +51,7 @@ EPOCH_COLS = ["epoch", "loss", "loss_pg", "loss_v", "val_pg", "val_v", "val_scor
               # silently, so a run that shipped ship_epoch=0 could not be diagnosed from
               # its own history and the train-side frac_converged got read in its place.
               # max_pg_err / max_v_err are the worst single control errors in the epoch,
-              # in physical p.u.; the training figure plots them.
+              # in physical p.u., the training figure plots them.
               "val_frac_converged", "max_pg_err", "max_v_err"]
 STEP_COLS = ["step", "epoch", "loss", "loss_pg", "loss_v", "gnorm", "lr", "wall_sec"]
 

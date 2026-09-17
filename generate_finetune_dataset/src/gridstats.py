@@ -69,7 +69,7 @@ def read_matpower(path: str, name: str | None = None) -> GridStats:
         raise ValueError(f"{path}: could not parse mpc.bus / mpc.gen")
     bm = re.search(r"mpc\.baseMVA\s*=\s*([0-9.eE+-]+)", text)
 
-    # Matpower column order: bus[1]=type bus[2]=Pd ; gen[7]=status gen[8]=Pmax gen[9]=Pmin
+    # Matpower column order: bus[1]=type bus[2]=Pd , gen[7]=status gen[8]=Pmax gen[9]=Pmin
     active = [g for g in gen if float(g[7]) != 0.0]
     types = [int(float(b[1])) for b in bus]
     return GridStats(
@@ -100,7 +100,7 @@ def validate_perturbations(stats: GridStats, p: dict, strict: bool = True) -> li
         # Deliberate breach: the top of the load range is knowingly put above what the
         # intact fleet can serve, to buy diversity at the high end. It costs SOLVE TIME,
         # not correctness -- infeasible scenarios are discarded and never published, so
-        # the dataset is unaffected; the run simply explores more cases to reach its
+        # the dataset is unaffected, the run simply explores more cases to reach its
         # feasible target. Opt in per config so the cost is a recorded choice rather
         # than an accident, which is the failure this check exists to prevent.
         if p.get("allow_load_sf_above_ceiling", False):

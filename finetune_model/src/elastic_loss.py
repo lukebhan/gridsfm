@@ -173,7 +173,7 @@ def elastic_loss(data: HeteroData, Vm: Tensor, theta: Tensor, pg: Tensor,
     # that capability: the ratio divides ~0 by ~0 and a rounding-level overshoot turns
     # into a large relative number. Both classes that normalise by a range are
     # filtered for it. Elements dropped here still contribute to the absolute penalty
-    # above; they are excluded only from the relative statistic.
+    # above, they are excluded only from the relative statistic.
     #
     # THE ACTIVE-POWER FILTER WAS MISSING AND THE ERROR WAS LARGE. ACTIVSg10k carries
     # ~880 fixed-output units per case (Pmin == Pmax), so clamp_min(1e-6) supplied the

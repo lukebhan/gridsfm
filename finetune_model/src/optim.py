@@ -77,7 +77,7 @@ def apply_freeze(model, mode: str) -> tuple[int, int]:
             p.requires_grad_(False)
         hit = 0
         for name, mod in model.named_modules():
-            # the surgery model's output heads; matched by name so this survives
+            # the surgery model's output heads, matched by name so this survives
             # refactors of the trunk
             if name.endswith("head") or ".head" in name or "pred" in name.lower():
                 for p in mod.parameters(recurse=True):

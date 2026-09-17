@@ -56,7 +56,7 @@ def main() -> int:
     if a.max_iters:
         cfg["solver"]["max_iters"] = a.max_iters
 
-    # <out>/<grid_id>/ holds the published .jsonl; _staging/ holds resumable per-case files
+    # <out>/<grid_id>/ holds the published .jsonl, _staging/ holds resumable per-case files
     out_root = a.out or os.path.join(ROOT, "data")
     grid_dir = os.path.join(out_root, cfg["grid_id"])
     staging = os.path.join(grid_dir, "_staging")

@@ -114,7 +114,7 @@ def run(cfg: dict, man: dict) -> dict:
 
     store = CaseStore(cfg["cache"]["dir"], D["lru_cases"], dev)
     # model.from_scratch: randomly initialised backbone instead of the released
-    # checkpoint -- the no-pretraining ablation. Same branch as train_elastic.py; see
+    # checkpoint -- the no-pretraining ablation. Same branch as train_elastic.py, see
     # config/defaults.yaml. With loss.mode=control the anchor is the ONLY term, so this
     # trains the architecture on GT controls alone, no power-flow closure in the loop.
     if bool(cfg["model"].get("from_scratch", False)):
@@ -288,7 +288,7 @@ def run(cfg: dict, man: dict) -> dict:
                         "train_loss": ("best_train_loss.pt", best_epoch)}[T["select_on"]]
     model.load_state_dict(torch.load(os.path.join(ckdir, pick), map_location=dev))
     # SELF-DESCRIBING for a non-default architecture. A bare state_dict forces the eval
-    # harness to infer (hidden_dim, num_blocks) from tensor shapes; that inference was
+    # harness to infer (hidden_dim, num_blocks) from tensor shapes, that inference was
     # wrong once and loaded a 64x4 checkpoint into the released 128x8 backbone. Recording
     # the arch alongside removes the guess. Written as a sidecar rather than changing the
     # blob's shape, because evaluate_model loads control_model.pt as a plain state_dict.

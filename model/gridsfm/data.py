@@ -210,7 +210,7 @@ def drop_offline_rows(data: HeteroData) -> dict:
             continue                       # absent, empty, or a pre-availability export
         keep = (x[:, col] > 0.5).nonzero(as_tuple=True)[0]
         if keep.numel() == x.size(0):
-            continue                       # nothing offline; leave the graph alone
+            continue                       # nothing offline, leave the graph alone
         data[nt].x = x[keep]
         kept[nt] = keep
         # Reindex the link edges onto the surviving rows, both directions.

@@ -16,10 +16,10 @@ logs/         <grid_id>/<run_label>/ training logs                       (create
 cache/        <grid_id>/ prepared-case cache      (generated, machine-local, not portable)
 ```
 
-`results/`, `logs/` and `cache/` ship empty — they are outputs, and the cache is not
+`results/`, `logs/` and `cache/` ship empty. They are outputs, and the cache is not
 portable between machines. Every output is scoped by `<run_label>`, so a data-scaling
-sweep writes N independent result sets instead of overwriting one; the cache is **not**,
-since it is per dataset and shared by every run.
+sweep writes N independent result sets instead of overwriting one. The cache is **not**
+scoped that way, since it is per dataset and shared by every run.
 
 ## What is released
 
@@ -29,7 +29,7 @@ checkpoints/
 └── <grid_id>/<run_label>/           one directory per training run
 ```
 
-`base/gridsfm_open_v2.pt` is `GridSFM-open-v2`, 15.1 M parameters, 61 MB — the upstream
+`base/gridsfm_open_v2.pt` is `GridSFM-open-v2`, 15.1 M parameters, 61 MB, the upstream
 Microsoft release, not trained here. It is what every config's `base_checkpoint` names,
 and what `model.from_scratch: true` ignores.
 
@@ -48,34 +48,34 @@ Seven runs per grid, 28 in total, all four grids identical in structure.
 | `n1000_scratch` | control | **random** (64×4) | 1000 | the no-pretraining control |
 
 The six `n<nnnn>` runs are the same recipe (`config/<grid>_finetune.yaml`) at increasing
-training-set size, and the subsets are **stratified and nested** — `subset(10)` ⊂
-`subset(100)` ⊂ … — so a difference between two points is more data, not different data.
+training-set size, and the subsets are **stratified and nested**, with `subset(10)` ⊂
+`subset(100)` ⊂ …, so a difference between two points is more data, not different data.
 Val and test are never subsetted, so every point is selected on the same val cases and
 scored on the same held-out test cases.
 
 `n1000_scratch` (`config/<grid>_scratch1k.yaml`) is what makes the rest mean something: the
-same architecture family and the same harness, trained from random init on 1000 cases —
-*more* data than any fine-tuned point gets. It answers "is the pretrained backbone doing
+same architecture family and the same harness, trained from random init on 1000 cases,
+which is *more* data than any fine-tuned point gets. It answers "is the pretrained backbone doing
 anything, or would this much data have sufficed on its own?"
 
 ### Files inside a run directory
 
 | file | what it is |
 |---|---|
-| `control_model.pt` | **the deliverable.** A copy of whichever checkpoint `train.select_on` chose. Every shipped run used `select_on: val`, so it is weight-identical to `best_val.pt` (the bytes differ — it is re-serialised on save). |
+| `control_model.pt` | **the deliverable.** A copy of whichever checkpoint `train.select_on` chose. Every shipped run used `select_on: val`, so it is weight-identical to `best_val.pt` (the bytes differ, because it is re-serialised on save). |
 | `best_val.pt` | the epoch with the lowest validation score, `val_score_pg_weight × Pg% + val_score_v_weight × V(p.u.)` |
 | `last.pt` | the final epoch, whenever training stopped |
 | `best_train_loss.pt` | lowest epoch *training* loss. Written by the `control`-mode loop only, so `n1000_scratch` has it and the elastic runs do not |
 | `control_model.json` | `control`-mode sidecar: the same summary as `test_metrics.json` (test/val errors, ship epoch, wall time, resolved hyperparameters, config and git sha) |
 | `arch.json` | `from_scratch` runs only: `{"hidden_dim": 64, "num_blocks": 4}`, so a loader never has to infer the architecture from tensor shapes. Inferring it wrongly once loaded a 64×4 checkpoint into the 128×8 backbone |
 
-Fine-tuned runs are ~175 MB per directory (three 61 MB copies of the 128×8 backbone);
+Fine-tuned runs are ~175 MB per directory, three 61 MB copies of the 128×8 backbone.
 `n1000_scratch` is ~31 MB, since `from_scratch` builds a 64×4 backbone of 1.96 M
 parameters.
 
 ### Loading one
 
-Run outputs are **bare `state_dict`s**, not the wrapped release format — only
+Run outputs are **bare `state_dict`s**, not the wrapped release format. Only
 `base/gridsfm_open_v2.pt` carries the `{state_dict, metadata}` envelope that
 `gridsfm.checkpoint.load_model` expects. So build the architecture first, then load the
 weights into it.
@@ -107,7 +107,7 @@ model.eval()
 ```
 
 `scripts/_bootstrap.py` puts `src/` and the repo's `model/` directory on `sys.path`, so
-you never set `PYTHONPATH` yourself; the bundled `gridsfm` takes precedence over any
+you never set `PYTHONPATH` yourself. The bundled `gridsfm` takes precedence over any
 installed copy.
 
 ## Usage
@@ -128,7 +128,7 @@ least `MIN_FREE_GB` (default 40) free, so an idle card belonging to someone else
 and a busy one is left alone. That is a courtesy check, not a reservation. Restrict the
 pool with `CAND="0 6" bash scripts/train_grid.sh …`.
 
-Every `finetune.py` flag overrides the corresponding config key for that run only; the
+Every `finetune.py` flag overrides the corresponding config key for that run only. The
 file is not modified, and the **resolved** config is written to
 `results/<grid_id>/<run_label>/resolved_config.yaml`, so a run is reproducible from its own
 output. Beyond the above: `--epochs` `--min_epochs` `--batch` `--accum` `--lr` `--seed`

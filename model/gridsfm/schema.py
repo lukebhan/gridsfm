@@ -40,7 +40,7 @@ TR_BTO_IDX          = 10
 
 # ON/OFF availability, APPENDED as the last raw column by the Julia exporter
 # (export_gridsfm_data.jl). Indices are the last raw column of each element
-# type; every index above is unchanged.
+# type, every index above is unchanged.
 BUS_AVAIL_IDX       = 4
 GEN_AVAIL_IDX       = 11
 LOAD_AVAIL_IDX      = 2

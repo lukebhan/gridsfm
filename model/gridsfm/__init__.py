@@ -74,7 +74,7 @@ def predict(
         )
 
     # model.forward attaches default per-node-type `batch` and reads
-    # `num_graphs` itself; no need to pre-populate them here.
+    # `num_graphs` itself, no need to pre-populate them here.
     out = model(data)
 
     bus_pred = out["bus"].pred
@@ -123,7 +123,7 @@ __all__ = [
     "predict",
     "schema",
     # Edge-type schema keys (used by callers wiring batched flows back to
-    # per-edge-type IDs; see `predict()` body for the canonical pattern).
+    # per-edge-type IDs, see `predict()` body for the canonical pattern).
     "AC_LINE_KEY",
     "TRANSFORMER_KEY",
     "__version__",

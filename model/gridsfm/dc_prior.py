@@ -46,7 +46,7 @@ class DCPriorCache:
                      key: Optional[str] = None) -> object:
         # Compute the key here when not supplied. Callers that already
         # need the key (e.g. for a per-topology grouping dict) can pass
-        # it to skip the second sha1; otherwise the API is safe by
+        # it to skip the second sha1, otherwise the API is safe by
         # default and cannot be silently poisoned with a stale key.
         if key is None:
             key = self.topo_key(n_bus, ei_cpu, b_ij, slack_idx)

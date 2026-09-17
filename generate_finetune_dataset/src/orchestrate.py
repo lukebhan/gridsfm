@@ -28,7 +28,7 @@ import dataset, stats as statsmod
 COMPOSED = "multi"
 
 # Mode application order, mirroring COMPOSE_ORDER in perturb_modes.jl. Used for
-# reporting only; the Julia side is the authority on what actually runs.
+# reporting only, the Julia side is the authority on what actually runs.
 MODE_ORDER = ("loads", "costs", "killgen", "derate", "vsqueeze")
 
 # Poll interval, and the waste knob: after the target is reached, workers keep going
@@ -121,7 +121,7 @@ def generate(cfg: dict, outdir: str, num_workers: int, total_num_feasible: int,
                     log(f"\n  target met ({got}/{target}) at "
                         f"{(time.time()-t0)/60:.1f} min; {alive} workers draining "
                         f"(they skip the rest)")
-                for p, _ in procs:                   # in-flight cases finish; the rest skip
+                for p, _ in procs:                   # in-flight cases finish, the rest skip
                     try:
                         p.wait(timeout=DRAIN_TIMEOUT)
                     except Exception:

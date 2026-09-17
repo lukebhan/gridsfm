@@ -77,7 +77,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
     # let it anneal away once it is healthy. The weight is re-solved each epoch from the
     # MEASURED per-unit gradient, which makes it self-calibrating across regimes.
     # W_MERIT RAMP (loss.w_merit_start / _end / _epochs / _schedule). Reuses the same
-    # curriculum_weight machinery as w_control. Set _end to ramp; leave it unset and
+    # curriculum_weight machinery as w_control. Set _end to ramp, leave it unset and
     # w_merit stays at the constant `w_merit`.
     #
     # WHY RAMP UP rather than hold or decay. merit only has authority while the closure
@@ -96,7 +96,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
     # w_control=85 but only 5-15% at w_control=1, and the anchor's gradient per unit
     # weight differs by 5.218x between the squared and max-aligned forms alone. A
     # geometric sweep of the WEIGHT therefore sweeps the share non-linearly and
-    # unpredictably; scheduling the share directly is what the gated config's own sweep
+    # unpredictably, scheduling the share directly is what the gated config's own sweep
     # was actually reasoning in ("93% -> PF broke", "75% <- chosen", "25% -> controls
     # lost"). Requires train.grad_probe_every >= 1.
     WC_SHARE_END = L.get("w_control_share_end", None)
@@ -128,7 +128,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
     # cos(anchor, eq_pen) = -0.892, and the per-epoch projections show the anchor at
     # +170% of the step direction while merit sits at -46% simultaneously. The whole
     # w_control / w_merit search has been an attempt to referee that conflict by
-    # reweighting; PCGrad instead removes it geometrically.
+    # reweighting, PCGrad instead removes it geometrically.
     #
     # Requires the per-term gradients, i.e. train.grad_probe_every >= 1 -- which the
     # probe already computes, so the marginal cost is only the pairwise dot products.
@@ -199,7 +199,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
     # UNNORMALISED SUMS over the grid, so on a large grid the cost term is left three
     # orders of magnitude below the penalties -- measured on case6470_rte, cost carried
     # 0.0% of the gradient (8.49 against ineq_pen's 1.15e+04) and the objective was doing
-    # no economic dispatch at all. An explicit value set by gradient balance fixes that;
+    # no economic dispatch at all. An explicit value set by gradient balance fixes that,
     # the auto-derivation is kept for grids where it has not been measured.
     if L.get("cost_scale") is not None:
         cost_scale = float(L["cost_scale"])
@@ -228,7 +228,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
     GRAD_PROBE = int(T.get("grad_probe_every", 0) or 0)
     WARM_START = bool(CL.get("warm_start", True))
     # closure.cold_init: 'dc' (default) | 'flat'. Which bootstrap a case that has no
-    # cached point gets. 'flat' is the textbook V=1 angle 0; on case6470_rte that start
+    # cached point gets. 'flat' is the textbook V=1 angle 0, on case6470_rte that start
     # converged 0/60 cases when it was measured, because the DC angles carry the solve.
     COLD_INIT = str(CL.get("cold_init", "dc")).lower()
     if COLD_INIT not in ("dc", "flat"):
@@ -258,7 +258,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
         boff = np.concatenate([[0], np.cumsum([c.n_bus for c in cases])])
         goff = np.concatenate([[0], np.cumsum([c.n_gen for c in cases])])
         Pg, V = predict(model, S)                       # [sum NG], [sum NB], with grad
-        # Warm start: the cached converged point once a case has solved; otherwise a
+        # Warm start: the cached converged point once a case has solved, otherwise a
         # cold-start bootstrap = the model's vm profile with DC power-flow angles (a
         # flat start does not converge AC Newton on large grids). One DC solve per
         # case, ever -- the cache carries it forward every later epoch.
@@ -291,7 +291,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
             else:
                 c = cases[k]
                 # closure.cold_init selects the bootstrap. 'dc' (default) = the model's
-                # voltage magnitudes with DC power-flow angles; 'flat' = the textbook
+                # voltage magnitudes with DC power-flow angles, 'flat' = the textbook
                 # V = 1.0 angle 0. See flat_init_V for what flat costs on this grid.
                 if COLD_INIT == "flat":
                     V0s.append(flat_init_V(c))
@@ -305,7 +305,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
         loss, diag = elastic_loss(S["data"], Vm, Va, Pg,
                                   L["rho_g"], L["rho_h"], cost_scale=cost_scale)
         # GT-ANCHOR term (tol-normalised, same tol_pg/tol_v/w_pg/w_v as the control
-        # loss). Always computed for logging/selection; weighted by the scheduled ``wc``
+        # loss). Always computed for logging/selection, weighted by the scheduled ``wc``
         # in the training loss -- heavy early to pull the controls into the PF-solvable
         # region, annealed to a balanced end weight.
         #
@@ -353,7 +353,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
         # NOTE this changes the SCALE of the logged `merit` column by ~B against every
         # run recorded before it -- history rows are only comparable within one
         # convention. It is the same convention cost/eq_pen/ineq_pen were always logged
-        # under. The WITHIN-case mean over residual entries in closure.py is untouched;
+        # under. The WITHIN-case mean over residual entries in closure.py is untouched,
         # that one was tried as a sum and reverted (see closure.py: the note at
         # `m_k = 0.5 * float(Fk @ Fk)`).
         merit_batch = merit.sum()
@@ -380,7 +380,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
         diag["frac_converged"] = (float(np.mean(pool.last_converged))
                                   if pool.last_converged else 1.0)
         # Carry the converged state across epochs for BOTH train and val, so every
-        # case pays the DC bootstrap solve only once; drop non-converged cases so
+        # case pays the DC bootstrap solve only once, drop non-converged cases so
         # they re-bootstrap (never warm-start from a bad basin).
         if WARM_START and train_mode:          # never seed val from val (see above)
             Vm_np = Vm.detach().cpu().numpy(); Va_np = Va.detach().cpu().numpy()
@@ -493,7 +493,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
               + ("  [log1p form]" if MERIT_LOG else ""), flush=True)
     # Minimum fraction of VALIDATION closures that must converge for an epoch to be
     # eligible for selection. 1.0 would be brittle (a single hard case blocks every
-    # epoch); the default demands essentially all of them.
+    # epoch), the default demands essentially all of them.
     SEL_MIN_FRAC = float(T.get("select_min_frac_converged", 0.99))
     best_vsel = float("inf"); stale = 0; best_ep = 0
     t_run = time.time()
@@ -506,7 +506,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
         if WC_SHARE_END is not None and wc_share_next is not None:
             wc = wc_share_next          # the share controller owns w_control
         if WM_RAMP_END is not None:
-            # The ramp OWNS w_merit; the convergence controller (w_merit_conv_target)
+            # The ramp OWNS w_merit, the convergence controller (w_merit_conv_target)
             # would fight it, so the two are mutually exclusive by construction --
             # whichever is configured takes effect, the ramp winning if both are.
             wm = curriculum_weight(ep, WM_RAMP_EPOCHS, WM_RAMP_START,
@@ -614,7 +614,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
                     n_clip += 1
             for kk, vv in diag.items():
                 if kk.startswith("max_"):
-                    # These are maxima over a batch; the epoch value is the max over
+                    # These are maxima over a batch, the epoch value is the max over
                     # batches, not their mean. Summing then dividing would report a
                     # number no batch ever saw and would hide the worst one.
                     acc_max[kk] = max(acc_max.get(kk, float("-inf")), vv)
@@ -635,7 +635,7 @@ def run_elastic(cfg: dict, man: dict) -> dict:
         # close MORE cases is scored on fewer, easier ones and can post a LOWER val
         # loss while its power flow does not solve. Measured on case6470_rte: n0200 hit
         # its best val at ep61 with max_absF = 6.0 and shipped that, discarding an ep81
-        # state at 5.5e-07; n0500 recorded three "best" epochs while sitting at
+        # state at 5.5e-07, n0500 recorded three "best" epochs while sitting at
         # max_absF 9-27. Requiring the validation closure to actually converge before an
         # epoch can be selected makes that impossible.
         v_frac = float(vd.get("frac_converged", 1.0))

@@ -156,7 +156,7 @@ def extract_case(d: HeteroData) -> Case:
     b_to = np.concatenate(btos) if btos else np.zeros(0)
     tap = np.concatenate(taps) if taps else np.zeros(0, np.complex128)
 
-    # bus roles: slack = type 3; PV = type 2 with an online regulating gen; else PQ
+    # bus roles: slack = type 3, PV = type 2 with an online regulating gen, else PQ
     has_online_gen = np.zeros(n_bus, dtype=bool)
     np.logical_or.at(has_online_gen, gen2bus[gen_online], True)
     ref = np.where(bus_type == 3)[0]
@@ -224,8 +224,8 @@ class PFResult:
     lu: SuperLU               # cached factor of the final Jacobian J = dF/dy
     dS_dVm: sp.csr_matrix     # cached at the solution (for the adjoint's ctrl cols)
     Ssp: np.ndarray           # specified complex injection used
-    J: sp.csc_matrix = None   # the final Jacobian itself (picklable; SuperLU is not)
-    gpu_factor: object = None  # live cuDSS factor (cudss backend only; cached by the
+    J: sp.csc_matrix = None   # the final Jacobian itself (picklable, SuperLU is not)
+    gpu_factor: object = None  # live cuDSS factor (cudss backend only, cached by the
                                # caller across epochs -- never pickled/crosses processes)
 
 
@@ -277,7 +277,7 @@ def newton_pf(c: Case, Ssp: np.ndarray, V0: np.ndarray, tol: float,
             if backend == "cudss":
                 from gpu_solver import CudssFactor
                 if gpu_fac is None:
-                    gpu_fac = CudssFactor(J)      # plan once; cached by the caller
+                    gpu_fac = CudssFactor(J)      # plan once, cached by the caller
                 gpu_fac.refactor(J)               # refactor in place (values only)
                 dx = gpu_fac.solve(-F)
             else:
@@ -637,7 +637,7 @@ class ACPFClosureBatch(torch.autograd.Function):
         Va = np.concatenate([r[1] for r in results])
         # Per-case power-balance residual at the returned iterate, and the merit
         # m = 0.5 * mean(F^2). For a converged case F ~ 0 and both the value and its
-        # gradient are ~0, so this costs one sparse matvec and changes nothing; for a
+        # gradient are ~0, so this costs one sparse matvec and changes nothing, for a
         # STALLED case it is the only well-defined gradient available (see _merit_grads).
         Fs, merits, merit_scale = [], [], []
         for k, c in enumerate(cases):
@@ -653,7 +653,7 @@ class ACPFClosureBatch(torch.autograd.Function):
             # one grid does not transfer to another. Summing it instead was tried and
             # REVERTED: at a 50% merit gradient share the closure collapsed from 0.70 to
             # 0.000-0.333 and test Pg went from 12.8% to 23.6%. The mean convention is
-            # what every shipped w_merit was tuned under; keep them consistent.
+            # what every shipped w_merit was tuned under, keep them consistent.
             m_k = 0.5 * float(Fk @ Fk) / max(Fk.size, 1)
             # LOG-COMPRESSED MERIT (merit_log): rho_r * log(1 + ||r||^2/(2 n_r)), i.e.
             # log1p of the plain half-mean-square, matching how elastic_loss already
@@ -717,7 +717,7 @@ class ACPFClosureBatch(torch.autograd.Function):
             try:
                 if backend == "cudss":
                     fac = ctx.pool.adjoint_factor(c, J)  # cached J^T plan, refactored
-                    solve_T = fac.solve                  # pool owns it; do not free
+                    solve_T = fac.solve                  # pool owns it, do not free
                 else:
                     lu = splu(J.tocsc())                 # re-factor for the adjoint
                     solve_T = lambda b, lu=lu: lu.solve(b, trans="T")
