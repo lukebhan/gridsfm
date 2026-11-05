@@ -1,0 +1,6 @@
+model/samples/* linguist-vendored
+*.json linguist-vendored
+
+power_grid/US/viewer/* linguist-vendored
+
+
