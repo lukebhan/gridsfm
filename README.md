@@ -116,9 +116,9 @@ hf download lukebhan/gridsfm \
 and 30 GB for `activsg10k`. Installing `hf_xet` (`pip install hf_xet`) makes these
 downloads chunked and resumable, which matters on the 8.4 GB files.
 
-### 5. Julia, only if you will regenerate datasets
+### 5. Julia for evaluation or dataset generation
 
-Skip this unless you intend to run the generator. Install Julia from
+Evaluation and dataset generation use Julia **1.12.6**. Install Julia from
 [julialang.org](https://julialang.org/downloads/), where `juliaup` is the easiest route,
 then instantiate the pinned solver environment:
 
@@ -154,6 +154,28 @@ python scripts/prep_cache.py --config config/case500_goc_finetune.yaml
 python scripts/finetune.py --config config/case500_goc_finetune.yaml \
     --train_subset 100 --run_label n0100 --device cuda
 ```
+
+## Evaluate released models
+
+After installing the dependencies and Julia environment above, run these commands
+from the repository root.
+
+Evaluate cold start, DC warm start, and fine-tuned GridSFM, including its feasible
+projection, on the original 100 selected case500 test scenarios:
+
+```bash
+python evaluate_model/scripts/run.py \
+    --grid case500_goc \
+    --models n0100 \
+    --device cuda:0 \
+    --workers 8
+```
+
+CUDA runs model inference and Ipopt solves run on CPU. If Julia is not on your `PATH`,
+add `--julia /path/to/julia`. The final output is in `evaluate_model/results/{path_chosen_by_user}/summary.csv` the location of `summary.csv`,
+which includes P90 iterations, convergence, speedup, and cost gap.
+
+Settings are in [`evaluate_model/config/evaluation.yaml`](evaluate_model/config/evaluation.yaml).
 
 ## Training from Scratch
 
@@ -208,12 +230,18 @@ gridsfm/
 │   ├── results/                 figures, history, metrics per run
 │   └── logs/                    training logs
 │
+├── evaluate_model/              Table I cold/DC/GridSFM evaluation
+│   ├── config/                  evaluation.yaml: inputs, inference and solver settings
+│   ├── scripts/                 run.py: evaluation runner
+│   ├── src/                     model prediction and Julia solver code
+│   └── results/                 generated starts, solver logs and evaluation metrics
+│
 ├── model/                       the `gridsfm` package, vendored from microsoft/gridSFM
 ├── requirements.txt             Python dependencies for everything above
 └── LICENSE
 ```
 
-Each of the three top-level directories has its own README with the detail:
+The dataset, fine-tuning, and model directories have their own READMEs with the detail:
 [`generate_finetune_dataset/`](generate_finetune_dataset/README.md),
 [`finetune_model/`](finetune_model/README.md), [`model/`](model/README.md).
 
@@ -237,11 +265,13 @@ own terms. See their HuggingFace repositories.
 If you use this code, the datasets or the checkpoints, please cite:
 
 ```bibtex
-@article{gridsfm2026,
-  title   = {GridSFM: A Foundation Model for Solving AC Optimal Power Flow},
-  author  = {},
-  journal = {},
-  year    = {},
-  url     = {https://github.com/lukebhan/gridsfm}
+@misc{bhan2026gridsfmfoundationmodelsolving,
+      title={GridSFM: A Foundation Model for Solving AC Optimal Power Flow},
+      author={Luke Bhan and Weiwei Yang and Margaret Capetz and Baosen Zhang},
+      year={2026},
+      eprint={2609.30173},
+      archivePrefix={arXiv},
+      primaryClass={eess.SY},
+      url={https://arxiv.org/abs/2609.30173},
 }
 ```

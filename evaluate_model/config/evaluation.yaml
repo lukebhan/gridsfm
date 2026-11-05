@@ -1,0 +1,173 @@
+# Scenario selection and result aggregation.
+evaluation:
+  # Seed for the original draw within each perturbation mode.
+  seed: 0
+  # Total scenarios selected from each grid's test split.
+  n_cases: 100
+  # Available model runs when runtime.models is all.
+  models: [n1000_scratch, base, n0100]
+  # Solver termination statuses counted as successful convergence.
+  solved_statuses: [LOCALLY_SOLVED, OPTIMAL, ALMOST_LOCALLY_SOLVED, ALMOST_OPTIMAL, SOLVE_SUCCEEDED]
+
+# Input and output paths relative to the repository root unless noted.
+paths:
+  # Directory containing one test_data.jsonl per grid.
+  data_root: generate_finetune_dataset/data
+  # Directory containing the published model checkpoints.
+  checkpoint_root: finetune_model/checkpoints
+  # Directory containing the source MATPOWER topologies.
+  topology_root: generate_finetune_dataset/topologies
+  # Existing Julia environment used by dataset generation.
+  julia_project: generate_finetune_dataset/src
+  # Base checkpoint path relative to checkpoint_root.
+  base_checkpoint: base/gridsfm_open_v2.pt
+  # Per-grid model checkpoint template relative to checkpoint_root.
+  model_checkpoint: '{grid}/{run}/control_model.pt'
+  # Parent directory for fresh evaluation output directories.
+  results_root: evaluate_model/results
+
+# Execution defaults overridden by matching command-line options.
+runtime:
+  # Grid identifier, or all to evaluate every configured grid.
+  grid: all
+  # Model run names, all for every available run, or none for cold/DC only.
+  models: all
+  # Model inference device: cpu, cuda, or cuda:N; Ipopt stays on CPU.
+  device: cpu
+  # Number of Julia solver processes running concurrently.
+  workers: 1
+  # Maximum number of graphs in each model inference batch.
+  batch_size: 32
+  # Julia executable name or absolute path.
+  julia: julia
+  # Numerical thread count assigned to each Julia worker.
+  threads_per_worker: 1
+  # PyTorch thread count for CPU model inference.
+  inference_threads: 1
+
+# Topology filenames and Newton power-flow tolerances for each grid.
+grids:
+  # Published 500-bus GOC grid.
+  case500_goc:
+    # MATPOWER filename relative to topology_root.
+    topology: pglib_opf_case500_goc.m
+    # Newton power-flow convergence tolerance.
+    completion_tol: 1.0e-6
+  # Published Texas 2,000-bus grid.
+  tx2k:
+    # MATPOWER filename relative to topology_root.
+    topology: Texas2k_series25_case1_summerpeak.m
+    # Newton power-flow convergence tolerance.
+    completion_tol: 1.0e-6
+  # Published 6,470-bus RTE grid.
+  case6470_rte:
+    # MATPOWER filename relative to topology_root.
+    topology: pglib_opf_case6470_rte.m
+    # Newton power-flow convergence tolerance.
+    completion_tol: 1.0e-5
+  # Published ACTIVSg 10,000-bus grid.
+  activsg10k:
+    # MATPOWER filename relative to topology_root.
+    topology: ACTIVSg10k.m
+    # Newton power-flow convergence tolerance.
+    completion_tol: 1.0e-5
+
+# Newton closure of predicted controls into bus voltages and reactive generation.
+completion:
+  # Maximum Newton iterations per predicted operating point.
+  max_iter: 40
+  # Small additive weight for sharing bus reactive generation among generators.
+  reactive_weight_epsilon: 1.0e-6
+
+# Initial primal values supplied to the AC solver.
+starts:
+  # Explicit cold-start values for every bus and generator.
+  cold:
+    # Initial bus voltage magnitude in per unit.
+    vm: 1.0
+    # Initial bus voltage angle in radians.
+    va: 0.0
+    # Generator field or numeric value used for initial active generation.
+    pg: pmin
+    # Generator field or numeric value used for initial reactive generation.
+    qg: qmin
+  # Values used alongside the DC-OPF solution.
+  dc:
+    # Bus voltage magnitude supplied with the DC solution.
+    vm: 1.0
+    # Fallback angle when the DC solution omits a bus.
+    va: 0.0
+    # Fallback active generation when the DC solution omits a generator.
+    pg: 0.0
+    # Reactive generation supplied with the DC solution.
+    qg: 0.0
+  # Fallback values when a model prediction omits a completed variable.
+  model:
+    # Bus angle used when no completed angle is present.
+    va: 0.0
+    # Reactive generation used when no completed reactive value is present.
+    qg: 0.0
+
+# Control-space distance minimized by the feasible projection arms.
+projection:
+  # Weight on squared active-generation deviations from the prediction.
+  pg_weight: 1.0
+  # Weight on squared controlled-voltage deviations from the prediction.
+  vm_weight: 1.0
+  # MATPOWER bus types whose voltage magnitudes enter the projection objective.
+  control_bus_types: [2, 3]
+
+# Ipopt options used through PowerModels and JuMP.
+ipopt:
+  # Option names passed to Ipopt as integers rather than floating-point values.
+  integer_options: [print_level, print_frequency_iter, max_iter]
+  # Options shared by every AC-OPF and projection arm, including cold.
+  common:
+    # Ipopt console verbosity.
+    print_level: 5
+    # Iteration interval between Ipopt progress lines.
+    print_frequency_iter: 10
+    # Suppress the Ipopt startup banner where supported.
+    sb: 'yes'
+    # Maximum Ipopt iterations per AC solve.
+    max_iter: 600
+    # Desired overall convergence tolerance.
+    tol: 1.0e-6
+    # Acceptable convergence tolerance used by Ipopt's acceptable-level stopping rule.
+    acceptable_tol: 1.0e-4
+    # Maximum wall-clock seconds allowed by Ipopt per AC solve.
+    max_wall_time: 600.0
+    # Maximum CPU seconds allowed by Ipopt per AC solve.
+    max_cpu_time: 600.0
+    # Use Ipopt's warm-start initializer for every arm, including cold.
+    warm_start_init_point: 'yes'
+    # Absolute interior push for initial primal variable bounds.
+    warm_start_bound_push: 1.0e-9
+    # Relative interior push for initial primal variable bounds.
+    warm_start_bound_frac: 1.0e-9
+    # Absolute interior push for initial slack bounds.
+    warm_start_slack_bound_push: 1.0e-9
+    # Relative interior push for initial slack bounds.
+    warm_start_slack_bound_frac: 1.0e-9
+    # Interior push for initial bound multipliers.
+    warm_start_mult_bound_push: 1.0e-9
+  # Initial barrier parameter selected by arm.
+  mu_init:
+    # Leave cold unset to use Ipopt's original default of 0.1.
+    cold: null
+    # Initial barrier parameter for DC and model warm-start arms.
+    warm: 1.0e-3
+  # Wall-clock deadline enforced by the intermediate callback per AC solve.
+  callback_time_limit: 600.0
+  # Ipopt options for the auxiliary DC-OPF solve.
+  dc:
+    # Suppress DC solver iteration output.
+    print_level: 0
+    # Suppress the DC solver startup banner where supported.
+    sb: 'yes'
+    # Maximum iterations for the auxiliary DC solve.
+    max_iter: 3000
+    # Desired overall DC convergence tolerance.
+    tol: 1.0e-6
+    # Acceptable convergence tolerance for the auxiliary DC solve.
+    acceptable_tol: 1.0e-4
