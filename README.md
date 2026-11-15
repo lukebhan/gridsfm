@@ -3,7 +3,7 @@
 ## About this repository
 
 This repository contains all the code for the paper **"GridSFM: A Foundation Model for
-Solving AC Optimal Power Flow"**.
+Solving AC Optimal Power Flow"**. The full paper is [available on arxiv](https://arxiv.org/abs/2609.30173).
 
 ## Pretrained Resources
 
