@@ -144,10 +144,6 @@ MadNLP **0.9.2**, MadNLPGPU **0.9.0**, CUDA.jl **5.11.3**, and CUDSS.jl **0.6.5*
 (cuDSS **0.7.1**, `CUDSS_jll` **0.7.1+0**). GPU validation used CUDA runtime **13.2**
 on NVIDIA RTX PRO 6000 Blackwell hardware.
 
-The published datasets are unchanged. Their original environment used JuMP 1.31.1,
-Polynomials 4.1.1, and OrderedCollections 1.8.2; the shared environment uses 1.31.2,
-4.1.2, and 2.0.1, respectively. With model starts fixed, 800 case500 CPU solves
-matched the previous evaluator environment in iterations, statuses, and objectives.
 
 ## Quick Start
 
@@ -203,7 +199,7 @@ Settings default to [`evaluation_cpu.yaml`](evaluate_model/config/evaluation_cpu
 or [`evaluation_gpu.yaml`](evaluate_model/config/evaluation_gpu.yaml), respectively;
 `--config` selects another file. CPU cold starts use `Pg=Pmin, Qg=Qmin`. GPU cold
 starts follow the [ExaModels AC-OPF example](https://github.com/exanauts/ExaModels.jl/blob/v0.9.7/docs/src/opf.jl#L102-L113),
-with `Pg=Qg=0`. Switching GPU starts to `Pmin/Qmin` reduces the performance on all grids except case6470_rte which slightly improved convergence. Note, since the GPU solvers use atomics, they are not necessarily deterministic, but may slightly vary (although only slightly). 
+with `Pg=Qg=0`. Switching GPU starts to `Pmin/Qmin` reduces the performance on all grids except case6470_rte which slightly improved convergence. Note, since the GPU solvers use atomics, they are not necessarily deterministic, but may slightly vary. 
 
 ## Training from Scratch
 
