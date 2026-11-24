@@ -23,6 +23,10 @@ finetune_model/logs/*
 finetune_model/results/*
 !finetune_model/results/.gitkeep
 
+# CPU and GPU evaluation outputs
+/evaluate_model/results/
+/evaluate_model/results_gpu/
+
 # dataset-generation scratch space
 **/_staging/
 **/_work/

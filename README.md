@@ -126,9 +126,10 @@ then instantiate the pinned solver environment:
 julia --project=generate_finetune_dataset/src -e 'using Pkg; Pkg.instantiate()'
 ```
 
-This resolves `Manifest.toml`, which pins the exact versions the released datasets were
-produced with: Ipopt, JuMP, PowerModels, JSON3, Polynomials, OrderedCollections, SHA.
-First run compiles them and takes several minutes.
+This resolves `Manifest.toml`, which pins Ipopt, JuMP, PowerModels, JSON3,
+Polynomials, OrderedCollections, SHA, and the GPU solver dependencies. First run
+compiles them and takes several minutes. Use `Pkg.instantiate()` without
+`Pkg.update()` to preserve the pinned versions.
 
 ```bash
 julia --project=generate_finetune_dataset/src -e 'using PowerModels, Ipopt; println("julia ok")'
@@ -136,6 +137,17 @@ julia --project=generate_finetune_dataset/src -e 'using PowerModels, Ipopt; prin
 
 The generator looks for the binary at `~/.local/bin/julia`. If yours is elsewhere, pass
 `--julia /path/to/julia` to `generate_finetune_dataset.py`.
+
+CPU evaluation uses PowerModels **0.21.6**, JuMP **1.31.2**, and Ipopt.jl **1.15.0**
+(native Ipopt **3.14.19**, MUMPS **5.8.2**). GPU evaluation uses ExaModels **0.9.7**,
+MadNLP **0.9.2**, MadNLPGPU **0.9.0**, CUDA.jl **5.11.3**, and CUDSS.jl **0.6.5**
+(cuDSS **0.7.1**, `CUDSS_jll` **0.7.1+0**). GPU validation used CUDA runtime **13.2**
+on NVIDIA RTX PRO 6000 Blackwell hardware.
+
+The published datasets are unchanged. Their original environment used JuMP 1.31.1,
+Polynomials 4.1.1, and OrderedCollections 1.8.2; the shared environment uses 1.31.2,
+4.1.2, and 2.0.1, respectively. With model starts fixed, 800 case500 CPU solves
+matched the previous evaluator environment in iterations, statuses, and objectives.
 
 ## Quick Start
 
@@ -161,21 +173,37 @@ After installing the dependencies and Julia environment above, run these command
 from the repository root.
 
 Evaluate cold start, DC warm start, and fine-tuned GridSFM, including its feasible
-projection, on the original 100 selected case500 test scenarios:
+projection, on the original 100 selected case500 test scenarios. For CPU Ipopt
+solves (Table I) with CUDA model inference:
 
 ```bash
-python evaluate_model/scripts/run.py \
+python evaluate_model/scripts/run_cpu.py \
     --grid case500_goc \
     --models n0100 \
     --device cuda:0 \
     --workers 8
 ```
 
-CUDA runs model inference and Ipopt solves run on CPU. If Julia is not on your `PATH`,
-add `--julia /path/to/julia`. The final output is in `evaluate_model/results/{path_chosen_by_user}/summary.csv` the location of `summary.csv`,
-which includes P90 iterations, convergence, speedup, and cost gap.
+For GPU solves with ExaModels, MadNLP, and cuDSS (Table VI):
 
-Settings are in [`evaluate_model/config/evaluation.yaml`](evaluate_model/config/evaluation.yaml).
+```bash
+python evaluate_model/scripts/run_gpu.py \
+    --grid case500_goc \
+    --models n0100 \
+    --device cuda:0 \
+    --gpus 0
+```
+
+`--device` selects model inference. `--workers` controls CPU solver processes;
+`--gpus` selects physical solver GPUs in PCI-bus order, with one worker per GPU.
+If Julia is not on your `PATH`, add `--julia /path/to/julia`.
+
+
+Settings default to [`evaluation_cpu.yaml`](evaluate_model/config/evaluation_cpu.yaml)
+or [`evaluation_gpu.yaml`](evaluate_model/config/evaluation_gpu.yaml), respectively;
+`--config` selects another file. CPU cold starts use `Pg=Pmin, Qg=Qmin`. GPU cold
+starts follow the [ExaModels AC-OPF example](https://github.com/exanauts/ExaModels.jl/blob/v0.9.7/docs/src/opf.jl#L102-L113),
+with `Pg=Qg=0`. Switching GPU starts to `Pmin/Qmin` reduces the performance on all grids except case6470_rte which slightly improved convergence. Note, since the GPU solvers use atomics, they are not necessarily deterministic, but may slightly vary (although only slightly). 
 
 ## Training from Scratch
 
@@ -217,7 +245,7 @@ gridsfm/
 ├── generate_finetune_dataset/   the dataset pipeline
 │   ├── config/                  one YAML per grid: seeds, perturbation ranges, splits
 │   ├── topologies/              Matpower .m source grids
-│   ├── src/                     source code
+│   ├── src/                     source code and shared Julia Project.toml/Manifest.toml
 │   ├── scripts/                 runnable dataset scripts
 │   └── data/                    generated datasets land here
 │
@@ -230,11 +258,12 @@ gridsfm/
 │   ├── results/                 figures, history, metrics per run
 │   └── logs/                    training logs
 │
-├── evaluate_model/              Table I cold/DC/GridSFM evaluation
-│   ├── config/                  evaluation.yaml: inputs, inference and solver settings
-│   ├── scripts/                 run.py: evaluation runner
-│   ├── src/                     model prediction and Julia solver code
-│   └── results/                 generated starts, solver logs and evaluation metrics
+├── evaluate_model/              CPU and GPU cold/DC/GridSFM evaluation
+│   ├── config/                  evaluation_cpu.yaml and evaluation_gpu.yaml
+│   ├── scripts/                 run_cpu.py and run_gpu.py
+│   ├── src/                     shared solve.jl, prediction, and CPU/GPU solver code
+│   ├── results/                 generated CPU evaluation outputs
+│   └── results_gpu/             generated GPU evaluation outputs
 │
 ├── model/                       the `gridsfm` package, vendored from microsoft/gridSFM
 ├── requirements.txt             Python dependencies for everything above

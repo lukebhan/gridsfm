@@ -2,24 +2,6 @@ using PowerModels, Ipopt, JSON3, JuMP
 
 include("recon.jl")
 
-function solve_gridsfm_ac_opf(data, solver; prepare! = nothing)
-    t0 = time_ns()
-    pm = PowerModels.instantiate_model(data, ACPPowerModel, PowerModels.build_opf)
-    local result
-    seconds = @elapsed begin
-        if prepare! === nothing
-            result = PowerModels.optimize_model!(pm, optimizer=solver)
-        else
-            JuMP.set_optimizer(pm.model, solver)
-            prepare!(pm)
-            result = PowerModels.optimize_model!(pm)
-        end
-    end
-    total_seconds = (time_ns() - t0) / 1e9
-    iterations = try Int(JuMP.barrier_iterations(pm.model)) catch; -1 end
-    return (; model=pm, result, iterations, seconds, total_seconds)
-end
-
 function ipopt_attributes(options, integer_options)
     attrs = Any[]
     for (key, value) in options
@@ -28,14 +10,6 @@ function ipopt_attributes(options, integer_options)
         push!(attrs, name => typed)
     end
     return attrs
-end
-
-function optimizer(arm, settings)
-    options = settings["ipopt"]
-    attrs = ipopt_attributes(options["common"], options["integer_options"])
-    mu = options["mu_init"][arm == "cold" ? "cold" : "warm"]
-    mu === nothing || push!(attrs, "mu_init" => Float64(mu))
-    return PowerModels.optimizer_with_attributes(Ipopt.Optimizer, attrs...)
 end
 
 function flat_start!(net, settings)
@@ -91,18 +65,6 @@ function model_start!(net, pred, settings)
     end
 end
 
-function projection!(pm, net, settings)
-    projection = settings["projection"]
-    pg, vm = PowerModels.var(pm, 0, :pg), PowerModels.var(pm, 0, :vm)
-    gids, bids = PowerModels.ids(pm, 0, :gen), PowerModels.ids(pm, 0, :bus)
-    pgt = Dict(g => Float64(net["gen"][string(g)]["pg"]) for g in gids)
-    ctrl = [b for b in bids if Int(net["bus"][string(b)]["bus_type"]) in projection["control_bus_types"]]
-    vmt = Dict(b => Float64(net["bus"][string(b)]["vm"]) for b in ctrl)
-    pg_weight, vm_weight = Float64(projection["pg_weight"]), Float64(projection["vm_weight"])
-    JuMP.@objective(pm.model, Min, pg_weight * sum((pg[g] - pgt[g])^2 for g in gids) +
-        vm_weight * sum((vm[b] - vmt[b])^2 for b in ctrl))
-end
-
 function gen_cost(net, sol; start=false)
     cost = 0.0
     for (i, g) in net["gen"]
@@ -135,33 +97,52 @@ end
 csvcell(x) = '"' * replace(string(x), '"' => "\"\"") * '"'
 write_row(io, xs) = (println(io, join(csvcell.(xs), ',')); flush(io))
 
-function evaluation_main(args=ARGS)
-    length(args) == 3 || error("Usage: solve.jl CONFIG.json TASKS.jsonl OUT.csv")
+extra_columns(::Val{:cpu}) = String[]
+extra_columns(::Val{:gpu}) = ["build_seconds"]
+
+function run_solver(backend, args=ARGS)
+    length(args) == 3 || error("Usage: solver.jl CONFIG.json TASKS.jsonl OUT.csv")
     cfgpath, taskpath, outpath = args
     cfg = JSON3.read(read(cfgpath, String), Dict{String,Any})
     settings = cfg["settings"]
     PowerModels.silence()
+    offsets = Vector{Int}(cfg["offsets"])
     pred_cache = Dict{String,Dict{Int,Any}}()
+    read_case(i::Int) = open(cfg["split_jsonl"]) do stream
+        offset = offsets[i + 1]
+        offset >= 0 || error("Missing byte offset for scenario $i")
+        seek(stream, offset)
+        JSON3.read(readline(stream), Dict{String,Any})
+    end
+    predictions(run::AbstractString) = get!(pred_cache, String(run)) do
+        records = Dict{Int,Any}()
+        for line in eachline(joinpath(cfg["pred_dir"], run * ".jsonl"))
+            isempty(strip(line)) && continue
+            pred = JSON3.read(line, Dict{String,Any})
+            records[Int(pred["i"])] = pred
+        end
+        records
+    end
+    state = setup_backend(backend, cfg, read_case)
+    columns = ["arm", "run", "case_idx", "mode", "scenario_id", "objective_kind",
+        "iterations", "seconds", extra_columns(backend)..., "start_seconds", "status",
+        "solver_objective", "gen_cost", "gt_objective", "dist_start", "start_cost", "note"]
     errors = 0
     open(outpath, "w") do io
-        write_row(io, ["arm", "run", "case_idx", "mode", "scenario_id", "objective_kind",
-            "iterations", "seconds", "start_seconds", "status", "solver_objective",
-            "gen_cost", "gt_objective", "dist_start", "start_cost", "note"])
+        write_row(io, columns)
         for line in eachline(taskpath)
             isempty(strip(line)) && continue
-            t = JSON3.read(line, Dict{String,Any})
-            arm, i = String(t["arm"]), Int(t["case_idx"])
-            run = get(t, "run", nothing)
-            obj, start = String(t["objective"]), String(t["start"])
-            println("START arm=$arm case=$i objective=$obj"); flush(stdout)
+            task = JSON3.read(line, Dict{String,Any})
+            arm, i = String(task["arm"]), Int(task["case_idx"])
+            run = get(task, "run", nothing)
+            objective, start = String(task["objective"]), String(task["start"])
+            row = Dict{String,Any}("arm" => arm, "run" => something(run, ""),
+                "case_idx" => i, "objective_kind" => objective)
+            println("START arm=$arm case=$i objective=$objective")
+            flush(stdout)
             try
-                offset = Int(cfg["offsets"][i + 1])
-                offset >= 0 || error("Missing byte offset for scenario $i")
-                pyg = open(cfg["split_jsonl"]) do f
-                    seek(f, offset)
-                    JSON3.read(readline(f), Dict{String,Any})
-                end
-                md = pyg["metadata"]
+                pyg = read_case(i)
+                md = get(pyg, "metadata", Dict{String,Any}())
                 net = build_net_from_pyg(cfg["topology"], pyg)
                 start_seconds, note = 0.0, start
                 if start == "flat"
@@ -170,43 +151,34 @@ function evaluation_main(args=ARGS)
                     start_seconds, note = dc_start!(net, settings)
                 elseif start in ("model", "base", "ft", "lf")
                     run === nothing && error("Model start requires a prediction run")
-                    preds = get!(pred_cache, String(run)) do
-                        Dict(Int(p["i"]) => p for p in
-                            (JSON3.read(l, Dict{String,Any}) for l in eachline(joinpath(cfg["pred_dir"], run * ".jsonl"))))
-                    end
-                    pred = preds[i]
+                    pred = predictions(String(run))[i]
                     model_start!(net, pred, settings)
                     note = get(pred, "dc_fallback", false) ? "model_dcfallback" : "model"
                 else
                     error("Unknown start: $start")
                 end
-                obj in ("cost", "dist_ctrl") || error("Unknown objective: $obj")
-                solved = solve_gridsfm_ac_opf(net, optimizer(arm, settings); prepare! = pm -> begin
-                    obj == "dist_ctrl" && projection!(pm, net, settings)
-                    deadline = time() + Float64(settings["ipopt"]["callback_time_limit"])
-                    JuMP.MOI.set(pm.model, Ipopt.CallbackFunction(), (args...) -> time() < deadline)
-                end)
-                pm, result, seconds = solved.model, solved.result, solved.total_seconds
-                status = string(result["termination_status"])
-                iterations = solved.iterations
-                sol = get(result, "solution", Dict())
-                write_row(io, [arm, something(run, ""), i, get(md, "perturb_mode", ""),
-                    get(md, "scenario_id", ""), obj, iterations, seconds, start_seconds, status,
-                    get(result, "objective", NaN), gen_cost(net, sol), get(md, "objective", NaN),
-                    dist_to_start(net, sol), gen_cost(net, Dict(); start=true), note])
-                println("DONE arm=$arm case=$i status=$status iterations=$iterations"); flush(stdout)
+                objective in ("cost", "dist_ctrl") || error("Unknown objective: $objective")
+                result = solve_case(backend, net, arm, start, objective, settings, state)
+                for (key, value) in pairs(result)
+                    row[String(key)] = value
+                end
+                row["mode"] = get(md, "perturb_mode", "")
+                row["scenario_id"] = get(md, "scenario_id", "")
+                row["gt_objective"] = get(md, "objective", "")
+                row["start_seconds"] = start_seconds
+                row["note"] = note
+                write_row(io, [get(row, name, "") for name in columns])
+                println("DONE arm=$arm case=$i status=$(result.status) iterations=$(result.iterations)")
+                flush(stdout)
             catch e
                 errors += 1
-                msg = replace(sprint(showerror, e), '\n' => ' ')
-                write_row(io, [arm, something(run, ""), i, "", "", obj, "", "", "", "ERROR",
-                    "", "", "", "", "", msg])
-                showerror(stderr, e, catch_backtrace()); println(stderr)
+                row["status"] = "ERROR"
+                row["note"] = replace(sprint(showerror, e), '\n' => ' ')
+                write_row(io, [get(row, name, "") for name in columns])
+                showerror(stderr, e, catch_backtrace())
+                println(stderr)
             end
         end
     end
     errors == 0 || error("$errors task(s) failed; see ERROR rows in $outpath")
-end
-
-if abspath(PROGRAM_FILE) == @__FILE__
-    evaluation_main()
 end

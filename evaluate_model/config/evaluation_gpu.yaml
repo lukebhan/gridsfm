@@ -17,14 +17,14 @@ paths:
   checkpoint_root: finetune_model/checkpoints
   # Directory containing the source MATPOWER topologies.
   topology_root: generate_finetune_dataset/topologies
-  # Existing Julia environment used by dataset generation.
+  # Pinned Julia environment shared by evaluation and dataset generation.
   julia_project: generate_finetune_dataset/src
   # Base checkpoint path relative to checkpoint_root.
   base_checkpoint: base/gridsfm_open_v2.pt
   # Per-grid model checkpoint template relative to checkpoint_root.
   model_checkpoint: '{grid}/{run}/control_model.pt'
   # Parent directory for fresh evaluation output directories.
-  results_root: evaluate_model/results
+  results_root: evaluate_model/results_gpu
 
 # Execution defaults overridden by matching command-line options.
 runtime:
@@ -32,10 +32,10 @@ runtime:
   grid: all
   # Model run names, all for every available run, or none for cold/DC only.
   models: all
-  # Model inference device: cpu, cuda, or cuda:N; Ipopt stays on CPU.
-  device: cpu
-  # Number of Julia solver processes running concurrently.
-  workers: 1
+  # Model inference device, independent of the GPU devices used by MadNLP.
+  device: cuda:0
+  # Physical GPU indices; one Julia worker solves sequentially on each device.
+  gpus: '0'
   # Maximum number of graphs in each model inference batch.
   batch_size: 32
   # Julia executable name or absolute path.
@@ -65,6 +65,10 @@ grids:
     topology: pglib_opf_case6470_rte.m
     # Newton power-flow convergence tolerance.
     completion_tol: 1.0e-5
+    # MadNLP settings specific to the RTE grid.
+    madnlp:
+      # Scale multiplying the projection distance objective.
+      proj_dscale: 20.0
   # Published ACTIVSg 10,000-bus grid.
   activsg10k:
     # MATPOWER filename relative to topology_root.
@@ -79,9 +83,10 @@ completion:
   # Small additive weight for sharing bus reactive generation among generators.
   reactive_weight_epsilon: 1.0e-6
 
-# Initial primal values supplied to the AC solver.
+# Primal overlays used before GPU model construction and after a failed DC solve.
+# The GPU cold arm uses ExaModels defaults: Pg=Qg=0, Vm=1, theta=0.
 starts:
-  # Explicit cold-start values for every bus and generator.
+  # Flat network overlay and DC-failure fallback; GPU cold Pg/Qg starts are zero.
   cold:
     # Initial bus voltage magnitude in per unit.
     vm: 1.0
@@ -108,57 +113,10 @@ starts:
     # Reactive generation used when no completed reactive value is present.
     qg: 0.0
 
-# Control-space distance minimized by the feasible projection arms.
-projection:
-  # Weight on squared active-generation deviations from the prediction.
-  pg_weight: 1.0
-  # Weight on squared controlled-voltage deviations from the prediction.
-  vm_weight: 1.0
-  # MATPOWER bus types whose voltage magnitudes enter the projection objective.
-  control_bus_types: [2, 3]
-
-# Ipopt options used through PowerModels and JuMP.
+# Ipopt is used only for the auxiliary DC-OPF initialization.
 ipopt:
-  # Option names passed to Ipopt as integers rather than floating-point values.
+  # DC option names passed to Ipopt as integers.
   integer_options: [print_level, print_frequency_iter, max_iter]
-  # Options shared by every AC-OPF and projection arm, including cold.
-  common:
-    # Ipopt console verbosity.
-    print_level: 5
-    # Iteration interval between Ipopt progress lines.
-    print_frequency_iter: 10
-    # Suppress the Ipopt startup banner where supported.
-    sb: 'yes'
-    # Maximum Ipopt iterations per AC solve.
-    max_iter: 600
-    # Desired overall convergence tolerance.
-    tol: 1.0e-6
-    # Acceptable convergence tolerance used by Ipopt's acceptable-level stopping rule.
-    acceptable_tol: 1.0e-4
-    # Maximum wall-clock seconds allowed by Ipopt per AC solve.
-    max_wall_time: 600.0
-    # Maximum CPU seconds allowed by Ipopt per AC solve.
-    max_cpu_time: 600.0
-    # Use Ipopt's warm-start initializer for every arm, including cold.
-    warm_start_init_point: 'yes'
-    # Absolute interior push for initial primal variable bounds.
-    warm_start_bound_push: 1.0e-9
-    # Relative interior push for initial primal variable bounds.
-    warm_start_bound_frac: 1.0e-9
-    # Absolute interior push for initial slack bounds.
-    warm_start_slack_bound_push: 1.0e-9
-    # Relative interior push for initial slack bounds.
-    warm_start_slack_bound_frac: 1.0e-9
-    # Interior push for initial bound multipliers.
-    warm_start_mult_bound_push: 1.0e-9
-  # Initial barrier parameter selected by arm.
-  mu_init:
-    # Leave cold unset to use Ipopt's original default of 0.1.
-    cold: null
-    # Initial barrier parameter for DC and model warm-start arms.
-    warm: 1.0e-3
-  # Wall-clock deadline enforced by the intermediate callback per AC solve.
-  callback_time_limit: 600.0
   # Ipopt options for the auxiliary DC-OPF solve.
   dc:
     # Suppress DC solver iteration output.
@@ -171,3 +129,22 @@ ipopt:
     tol: 1.0e-6
     # Acceptable convergence tolerance for the auxiliary DC solve.
     acceptable_tol: 1.0e-4
+
+# GPU MadNLP and ExaModels settings used by all AC-OPF and projection arms.
+madnlp:
+  # Maximum MadNLP iterations per AC solve.
+  max_iter: 600
+  # Maximum wall-clock seconds per AC solve.
+  max_wall_time: 600.0
+  # Desired overall convergence tolerance.
+  tol: 1.0e-6
+  # Apply MadNLP nonlinear scaling to generation-cost objectives.
+  nlp_scaling_cost: false
+  # Apply MadNLP nonlinear scaling to projection objectives.
+  nlp_scaling_dist: true
+  # Scale multiplying the projection distance; the RTE grid overrides this to 20.
+  proj_dscale: 1000.0
+  # Weight on squared controlled-voltage deviations within the GPU projection.
+  proj_vw: 1.0
+  # Add branch active/reactive flow box bounds alongside apparent-flow limits.
+  pq_box: true
